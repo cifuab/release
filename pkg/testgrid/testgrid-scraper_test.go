@@ -17,10 +17,12 @@ limitations under the License.
 package testgrid
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -34,10 +36,10 @@ func TestRequestTestgridSummaryPos(t *testing.T) {
 
 	for _, dashboardName := range posDashboardNames {
 		// When
-		summary, err := ReqTestgridDashboardSummary(dashboardName)
+		summary, err := ReqTestgridDashboardSummary(context.Background(), dashboardName)
 
 		// Then
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, summary)
 		for _, jobs := range summary {
 			assert.Equal(t, dashboardName, jobs.DashboardName)
@@ -51,10 +53,10 @@ func TestRequestTestgridSummaryNeg(t *testing.T) {
 
 	for _, dashboardName := range negDashboardNames {
 		// When
-		summary, err := ReqTestgridDashboardSummary(dashboardName)
+		summary, err := ReqTestgridDashboardSummary(context.Background(), dashboardName)
 
 		// Then
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, summary)
 	}
 }
@@ -64,10 +66,10 @@ func TestRequestTestgridSummariesPos(t *testing.T) {
 	// positive dashboard names
 
 	// When
-	data, err := ReqTestgridDashboardSummaries(posDashboardNames)
+	data, err := ReqTestgridDashboardSummaries(context.Background(), posDashboardNames)
 
 	// Then
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, len(posDashboardNames), len(data))
 }
 
@@ -76,10 +78,10 @@ func TestRequestTestgridSummariesNeg(t *testing.T) {
 	// negative dashboard names
 
 	// When
-	data, err := ReqTestgridDashboardSummaries(negDashboardNames)
+	data, err := ReqTestgridDashboardSummaries(context.Background(), negDashboardNames)
 
 	// Then
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, data)
 }
 
@@ -88,10 +90,10 @@ func TestRequestTestgridSummariesPosNeg(t *testing.T) {
 	// Request positive and negative dashboard names, expect to get an error and receive positive dashboard name summaries
 
 	// When
-	data, err := ReqTestgridDashboardSummaries(append(negDashboardNames, posDashboardNames...))
+	data, err := ReqTestgridDashboardSummaries(context.Background(), append(negDashboardNames, posDashboardNames...))
 
 	// Then
-	assert.Error(t, err, "an error should be returned as not all dashboard name references are correct")
+	require.Error(t, err, "an error should be returned as not all dashboard name references are correct")
 	assert.NotEmpty(t, data, "response shouldn't be empty because valid data das been added alongside faulty data - the correct data should be getting processed nonetheless")
 	assert.Equal(t, len(posDashboardNames), len(data))
 }
@@ -115,7 +117,7 @@ func TestOverviewPos(t *testing.T) {
 	}
 	data := JobData{}
 	for _, jobDef := range jobGeneratorDef {
-		for i := 0; i < jobDef.amountOfJobs; i++ {
+		for i := range jobDef.amountOfJobs {
 			data[JobName(fmt.Sprintf("%s-%d", jobDef.overallStatus, i))] = JobSummary{
 				OverallStatus: jobDef.overallStatus,
 				DashboardName: "sample-dashboard",
@@ -127,11 +129,11 @@ func TestOverviewPos(t *testing.T) {
 	o, err := data.Overview()
 
 	// Then
-	assert.NoError(t, err)
-	assert.Equal(t, failingJobs, len(o.FailingJobs))
-	assert.Equal(t, flakyJobs, len(o.FlakyJobs))
-	assert.Equal(t, passingJobs, len(o.PassingJobs))
-	assert.Equal(t, staleJobs, len(o.StaleJobs))
+	require.NoError(t, err)
+	assert.Len(t, o.FailingJobs, failingJobs)
+	assert.Len(t, o.FlakyJobs, flakyJobs)
+	assert.Len(t, o.PassingJobs, passingJobs)
+	assert.Len(t, o.StaleJobs, staleJobs)
 }
 
 func TestOverviewNeg(t *testing.T) {
@@ -143,7 +145,7 @@ func TestOverviewNeg(t *testing.T) {
 		o, err := s.Overview()
 
 		// Then
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, o)
 	}
 }

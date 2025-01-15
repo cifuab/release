@@ -24,10 +24,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"sigs.k8s.io/release-sdk/git"
+
 	"k8s.io/release/pkg/gcp/gcb"
 	"k8s.io/release/pkg/gcp/gcb/gcbfakes"
 	"k8s.io/release/pkg/release"
-	"sigs.k8s.io/release-sdk/git"
 )
 
 func mockRepo() gcb.Repository {
@@ -108,9 +109,9 @@ func TestSubmitList(t *testing.T) {
 		err := sut.Submit()
 
 		if tc.expectedErr {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -156,15 +157,16 @@ func TestSubmitGcbFailure(t *testing.T) {
 
 func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 	testcases := []struct {
-		name        string
-		gcbOpts     *gcb.Options
-		toolOrg     string
-		toolRepo    string
-		toolRef     string
-		expected    map[string]string
-		repoMock    gcb.Repository
-		versionMock gcb.Version
-		releaseMock gcb.Release
+		name           string
+		gcbOpts        *gcb.Options
+		toolOrg        string
+		toolRepo       string
+		toolRef        string
+		forceBuildKrel string
+		expected       map[string]string
+		repoMock       gcb.Repository
+		versionMock    gcb.Version
+		releaseMock    gcb.Release
 	}{
 		{
 			name: "main branch alpha - stage",
@@ -182,6 +184,7 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				"TOOL_ORG":               "",
 				"TOOL_REPO":              "",
 				"TOOL_REF":               "",
+				"FORCE_BUILD_KREL":       "",
 				"TYPE":                   release.ReleaseTypeAlpha,
 				"TYPE_TAG":               release.ReleaseTypeAlpha,
 				"MAJOR_VERSION_TAG":      "1",
@@ -210,12 +213,14 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				"TOOL_ORG":               "",
 				"TOOL_REPO":              "",
 				"TOOL_REF":               "",
+				"FORCE_BUILD_KREL":       "",
 				"TYPE":                   release.ReleaseTypeBeta,
 				"TYPE_TAG":               release.ReleaseTypeBeta,
 				"MAJOR_VERSION_TAG":      "1",
 				"MINOR_VERSION_TAG":      "33",
 				"PATCH_VERSION_TAG":      "7",
 				"KUBERNETES_VERSION_TAG": "1.33.7",
+				"KUBERNETES_GCS_BUCKET":  "gs://test-bucket/stage/v1.33.7/v1.33.7/gcs-stage/v1.33.7",
 				"K8S_ORG":                git.DefaultGithubOrg,
 				"K8S_REPO":               git.DefaultGithubRepo,
 				"K8S_REF":                git.DefaultRef,
@@ -237,6 +242,7 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				"TOOL_ORG":               "",
 				"TOOL_REPO":              "",
 				"TOOL_REF":               "",
+				"FORCE_BUILD_KREL":       "",
 				"TYPE":                   release.ReleaseTypeRC,
 				"TYPE_TAG":               release.ReleaseTypeRC,
 				"MAJOR_VERSION_TAG":      "1",
@@ -264,6 +270,7 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				"TOOL_ORG":               "",
 				"TOOL_REPO":              "",
 				"TOOL_REF":               "",
+				"FORCE_BUILD_KREL":       "",
 				"TYPE":                   release.ReleaseTypeOfficial,
 				"TYPE_TAG":               release.ReleaseTypeOfficial,
 				"MAJOR_VERSION_TAG":      "1",
@@ -283,12 +290,13 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				ReleaseType: release.ReleaseTypeOfficial,
 				GcpUser:     "test-user",
 			},
-			repoMock:    mockRepo(),
-			versionMock: mockVersion("v1.16.0"),
-			releaseMock: mockRelease("v1.16.0"),
-			toolOrg:     "honk",
-			toolRepo:    "best-tools",
-			toolRef:     "tool-branch",
+			repoMock:       mockRepo(),
+			versionMock:    mockVersion("v1.16.0"),
+			releaseMock:    mockRelease("v1.16.0"),
+			toolOrg:        "honk",
+			toolRepo:       "best-tools",
+			toolRef:        "tool-branch",
+			forceBuildKrel: "true",
 			expected: map[string]string{
 				"RELEASE_BRANCH":         "release-1.16",
 				"TOOL_ORG":               "honk",
@@ -296,6 +304,7 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				"TOOL_REF":               "tool-branch",
 				"TYPE":                   release.ReleaseTypeOfficial,
 				"TYPE_TAG":               release.ReleaseTypeOfficial,
+				"FORCE_BUILD_KREL":       "true",
 				"MAJOR_VERSION_TAG":      "1",
 				"MINOR_VERSION_TAG":      "16",
 				"PATCH_VERSION_TAG":      "0",
@@ -313,17 +322,19 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				ReleaseType: release.ReleaseTypeBeta,
 				GcpUser:     "test-user",
 			},
-			repoMock:    mockRepo(),
-			versionMock: mockVersion("v1.19.0-alpha.2.763+2da917d3701904"),
-			releaseMock: mockRelease("1.19.0-beta.0"),
-			toolOrg:     "honk",
-			toolRepo:    "best-tools",
-			toolRef:     "tool-branch",
+			repoMock:       mockRepo(),
+			versionMock:    mockVersion("v1.19.0-alpha.2.763+2da917d3701904"),
+			releaseMock:    mockRelease("1.19.0-beta.0"),
+			toolOrg:        "honk",
+			toolRepo:       "best-tools",
+			toolRef:        "tool-branch",
+			forceBuildKrel: "true",
 			expected: map[string]string{
 				"RELEASE_BRANCH":         "release-1.19",
 				"TOOL_ORG":               "honk",
 				"TOOL_REPO":              "best-tools",
 				"TOOL_REF":               "tool-branch",
+				"FORCE_BUILD_KREL":       "true",
 				"TYPE":                   release.ReleaseTypeBeta,
 				"TYPE_TAG":               release.ReleaseTypeBeta,
 				"MAJOR_VERSION_TAG":      "1",
@@ -343,14 +354,16 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				ReleaseType: release.ReleaseTypeRC,
 				GcpUser:     "test-user",
 			},
-			repoMock:    mockRepo(),
-			versionMock: mockVersion("v1.18.6-rc.0.15+e38139724f8f00"),
-			releaseMock: mockRelease("1.18.6-rc.1"),
+			repoMock:       mockRepo(),
+			versionMock:    mockVersion("v1.18.6-rc.0.15+e38139724f8f00"),
+			releaseMock:    mockRelease("1.18.6-rc.1"),
+			forceBuildKrel: "false",
 			expected: map[string]string{
 				"RELEASE_BRANCH":         "release-1.18",
 				"TOOL_ORG":               "",
 				"TOOL_REPO":              "",
 				"TOOL_REF":               "",
+				"FORCE_BUILD_KREL":       "false",
 				"TYPE":                   release.ReleaseTypeRC,
 				"TYPE_TAG":               release.ReleaseTypeRC,
 				"MAJOR_VERSION_TAG":      "1",
@@ -378,6 +391,7 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 				"TOOL_ORG":               "",
 				"TOOL_REPO":              "",
 				"TOOL_REF":               "",
+				"FORCE_BUILD_KREL":       "",
 				"TYPE":                   release.ReleaseTypeRC,
 				"TYPE_TAG":               release.ReleaseTypeRC,
 				"MAJOR_VERSION_TAG":      "1",
@@ -400,9 +414,9 @@ func TestSetGCBSubstitutionsSuccess(t *testing.T) {
 		sut.SetReleaseClient(tc.releaseMock)
 
 		subs, err := sut.SetGCBSubstitutions(
-			tc.toolOrg, tc.toolRepo, tc.toolRef,
+			tc.toolOrg, tc.toolRepo, tc.toolRef, "gs://test-bucket", tc.forceBuildKrel,
 		)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		actual := dropDynamicSubstitutions(subs)
 		require.Equal(t, tc.expected, actual)
@@ -447,7 +461,7 @@ func TestSetGCBSubstitutionsFailure(t *testing.T) {
 		sut := gcb.New(tc.gcbOpts)
 		sut.SetRepoClient(tc.repoMock)
 		sut.SetVersionClient(tc.versionMock)
-		_, err := sut.SetGCBSubstitutions("", "", "")
+		_, err := sut.SetGCBSubstitutions("", "", "", "", "")
 		require.Error(t, err)
 	}
 }
@@ -504,7 +518,7 @@ func TestValidateSuccess(t *testing.T) {
 		t.Logf("Test case: %s", tc.name)
 
 		err := tc.gcbOpts.Validate()
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 }
 

@@ -17,6 +17,7 @@ limitations under the License.
 package testgrid
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,7 +29,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-// SummaryLookup this type is used if multiple testgrid summaries are getting requested concurrently
+// SummaryLookup this type is used if multiple testgrid summaries are getting requested concurrently.
 type SummaryLookup struct {
 	Dashboard DashboardName
 	Error     error
@@ -36,15 +37,15 @@ type SummaryLookup struct {
 }
 
 // ReqTestgridDashboardSummaries this function requests multiple testgrid summaries concurrently
-// This function implements a concurrency pattern to send http requests concurrently
-func ReqTestgridDashboardSummaries(dashboardNames []DashboardName) (DashboardData, error) {
+// This function implements a concurrency pattern to send http requests concurrently.
+func ReqTestgridDashboardSummaries(ctx context.Context, dashboardNames []DashboardName) (DashboardData, error) {
 	// Worker
 	requestData := func(done <-chan interface{}, dashboardNames ...DashboardName) <-chan SummaryLookup {
 		summaryLookups := make(chan SummaryLookup)
 		go func() {
 			defer close(summaryLookups)
 			for _, dashboardName := range dashboardNames {
-				summary, err := ReqTestgridDashboardSummary(dashboardName)
+				summary, err := ReqTestgridDashboardSummary(ctx, dashboardName)
 				select {
 				case <-done:
 					return
@@ -79,9 +80,16 @@ type NotFound error
 
 var ErrDashboardNotFound NotFound = errors.New("testgrid dashboard not found")
 
-// ReqTestgridDashboardSummary used to retrieve summary information about a testgrid dashboard
-func ReqTestgridDashboardSummary(dashboardName DashboardName) (JobData, error) {
-	resp, err := http.Get(fmt.Sprintf("https://testgrid.k8s.io/%s/summary", dashboardName))
+// ReqTestgridDashboardSummary used to retrieve summary information about a testgrid dashboard.
+func ReqTestgridDashboardSummary(ctx context.Context, dashboardName DashboardName) (JobData, error) {
+	url := fmt.Sprintf("https://testgrid.k8s.io/%s/summary", dashboardName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("create new request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request remote content: %w", err)
 	}
@@ -100,7 +108,7 @@ func ReqTestgridDashboardSummary(dashboardName DashboardName) (JobData, error) {
 	return summary, nil
 }
 
-// Overview used to get an overview about a testgrid board without additional information
+// Overview used to get an overview about a testgrid board without additional information.
 type Overview struct {
 	PassingJobs []JobName
 	FlakyJobs   []JobName
@@ -112,16 +120,16 @@ type Overview struct {
 // Types that reflect from testgrid summary
 //
 
-// JobName type for testgrid jobs
+// JobName type for testgrid jobs.
 type JobName string
 
-// DashboardData used to store testgrid dashboards
+// DashboardData used to store testgrid dashboards.
 type DashboardData map[DashboardName]JobData
 
-// JobData used to store multiple TestgridJobs TestgridJobSummary
+// JobData used to store multiple TestgridJobs TestgridJobSummary.
 type JobData map[JobName]JobSummary
 
-// Overview used to get an overview about a testgrid dashboard
+// Overview used to get an overview about a testgrid dashboard.
 func (d *JobData) Overview() (Overview, error) {
 	overview := Overview{}
 	for job := range *d {
@@ -142,19 +150,19 @@ func (d *JobData) Overview() (Overview, error) {
 	return overview, nil
 }
 
-// UnmarshalTestgridSummary used to unmarshal bytes into TestgridSummary
+// UnmarshalTestgridSummary used to unmarshal bytes into TestgridSummary.
 func UnmarshalTestgridSummary(data []byte) (JobData, error) {
 	var r JobData
 	err := json.Unmarshal(data, &r)
 	return r, err
 }
 
-// Marshal used to marshal TestgridSummary into bytes
+// Marshal used to marshal TestgridSummary into bytes.
 func (d *JobData) Marshal() ([]byte, error) {
 	return json.Marshal(d)
 }
 
-// JobSummary contains information about a testgrid job
+// JobSummary contains information about a testgrid job.
 type JobSummary struct {
 	Alert               string        `json:"alert"`
 	LastRunTimestamp    int64         `json:"last_run_timestamp"`
@@ -168,12 +176,12 @@ type JobSummary struct {
 	BugURL              string        `json:"bug_url"`
 }
 
-// GetJobURL used to get the testgrid job url
+// GetJobURL used to get the testgrid job url.
 func (j *JobSummary) GetJobURL(jobName JobName) string {
 	return fmt.Sprintf("https://testgrid.k8s.io/%s#%s", j.DashboardName, strings.ReplaceAll(string(jobName), " ", "%20"))
 }
 
-// Test contains information about tests if the status if the Job is failing
+// Test contains information about tests if the status if the Job is failing.
 type Test struct {
 	DisplayName    string        `json:"display_name"`
 	TestName       string        `json:"test_name"`
@@ -188,20 +196,20 @@ type Test struct {
 	FailTestLink   string        `json:"fail_test_link"`
 }
 
-// DashboardName type for the testgrid dashboard (like sig-release-master-blocking)
+// DashboardName type for the testgrid dashboard (like sig-release-master-blocking).
 type DashboardName string
 
 const (
-	// SigReleaseMasterInforming one of the dashboard names that can be used to scrapo a testgrid summary
+	// SigReleaseMasterInforming one of the dashboard names that can be used to scrapo a testgrid summary.
 	SigReleaseMasterInforming DashboardName = "sig-release-master-informing"
-	// SigReleaseMasterBlocking one of the dashboard names that can be used to scrapo a testgrid summary
+	// SigReleaseMasterBlocking one of the dashboard names that can be used to scrapo a testgrid summary.
 	SigReleaseMasterBlocking DashboardName = "sig-release-master-blocking"
 	sigRegexStr              string        = "sig-[a-zA-Z]+"
 )
 
 var sigRegex = regexp.MustCompile(sigRegexStr)
 
-// FilterSigs used to filter sigs from failing tests
+// FilterSigs used to filter sigs from failing tests.
 func (j *JobSummary) FilterSigs() []string {
 	sigsInvolved := map[string]int{}
 	for i := range j.Tests {
@@ -224,16 +232,16 @@ func (j *JobSummary) FilterSuccessRateForLastRuns() string {
 	return successRateForLastRunsRegex.FindString(j.Status)
 }
 
-// OverallStatus of a job in testgrid
+// OverallStatus of a job in testgrid.
 type OverallStatus string
 
 const (
-	// Failing job status
+	// Failing job status.
 	Failing OverallStatus = "FAILING"
-	// Flaky job status
+	// Flaky job status.
 	Flaky OverallStatus = "FLAKY"
-	// Passing job status
+	// Passing job status.
 	Passing OverallStatus = "PASSING"
-	// Stale job status
+	// Stale job status.
 	Stale OverallStatus = "STALE"
 )

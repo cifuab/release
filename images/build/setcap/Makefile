@@ -18,18 +18,19 @@ REGISTRY?="gcr.io/k8s-staging-build-image"
 IMAGE=$(REGISTRY)/setcap
 
 TAG ?= $(shell git describe --tags --always --dirty)
-IMAGE_VERSION ?= bullseye-v1.3.0
-CONFIG ?= bullseye
-DEBIAN_BASE_VERSION ?= bullseye-v1.3.0
+IMAGE_VERSION ?= bookworm-v1.0.4
+CONFIG ?= bookworm
+DEBIAN_BASE_VERSION ?= bookworm-v1.0.4
 
 ARCH?=amd64
 ALL_ARCH = amd64 arm arm64 ppc64le s390x
 
-BASE_REGISTRY?=k8s.gcr.io/build-image
+BASE_REGISTRY?=registry.k8s.io/build-image
 BASEIMAGE?=$(BASE_REGISTRY)/debian-base-$(ARCH):$(DEBIAN_BASE_VERSION)
 
 # Build args
-QEMUVERSION=6.1.0-8
+QEMUVERSION=7.2.0-1
+QEMUIMAGE ?= multiarch/qemu-user-static
 
 # This option is for running docker manifest command
 export DOCKER_CLI_EXPERIMENTAL := enabled
@@ -39,7 +40,7 @@ build:
 	umask 0022
 
 	# Enable execution of multi-architecture containers
-	docker run --rm --privileged multiarch/qemu-user-static:$(QEMUVERSION) --reset -p yes
+	docker run --rm --privileged $(QEMUIMAGE):$(QEMUVERSION) --reset -p yes
 	docker buildx version
 	BUILDER=$(shell docker buildx create --use)
 	docker buildx build \

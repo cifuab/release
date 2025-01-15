@@ -1,4 +1,4 @@
-// +build tools
+//go:build tools
 
 /*
 Copyright 2019 The Kubernetes Authors.
@@ -23,6 +23,4 @@ package internal
 import (
 	_ "github.com/maxbrunsfeld/counterfeiter/v6"
 	_ "github.com/psampaz/go-mod-outdated"
-
-	_ "sigs.k8s.io/zeitgeist"
 )

@@ -21,8 +21,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-sdk/git"
+
+	"k8s.io/release/pkg/release"
 )
 
 func TestGenerateReleaseVersion(t *testing.T) {
@@ -40,14 +41,14 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           "release-1.18",
 			branchFromMaster: false,
 			expect: func(res *release.Versions, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "v1.18.4", res.Prime())
 				require.Equal(t, "v1.18.4", res.Official())
-				require.Equal(t, "v1.18.5-rc.0", res.RC())
+				require.Empty(t, res.RC())
 				require.Empty(t, res.Beta())
 				require.Empty(t, res.Alpha())
 				require.Equal(t,
-					[]string{"v1.18.4", "v1.18.5-rc.0"},
+					[]string{"v1.18.4"},
 					res.Ordered(),
 				)
 			},
@@ -59,7 +60,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           "release-1.18",
 			branchFromMaster: false,
 			expect: func(res *release.Versions, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "v1.18.4-rc.1", res.Prime())
 				require.Empty(t, res.Official())
 				require.Equal(t, "v1.18.4-rc.1", res.RC())
@@ -75,7 +76,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           "release-1.18",
 			branchFromMaster: true,
 			expect: func(res *release.Versions, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "v1.18.0-rc.0", res.Prime())
 				require.Empty(t, res.Official())
 				require.Equal(t, "v1.18.0-rc.0", res.RC())
@@ -94,7 +95,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           git.DefaultBranch,
 			branchFromMaster: false,
 			expect: func(res *release.Versions, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "v1.18.4-beta.2", res.Prime())
 				require.Empty(t, res.Official())
 				require.Empty(t, res.RC())
@@ -110,7 +111,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           git.DefaultBranch,
 			branchFromMaster: false,
 			expect: func(res *release.Versions, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "v1.18.0-beta.0", res.Prime())
 				require.Empty(t, res.Official())
 				require.Empty(t, res.RC())
@@ -126,7 +127,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           git.DefaultBranch,
 			branchFromMaster: false,
 			expect: func(res *release.Versions, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "v1.18.4-alpha.2", res.Prime())
 				require.Empty(t, res.Official())
 				require.Empty(t, res.RC())
@@ -142,7 +143,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           git.DefaultBranch,
 			branchFromMaster: false,
 			expect: func(res *release.Versions, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "v1.20.0-alpha.3", res.Prime())
 				require.Empty(t, res.Official())
 				require.Empty(t, res.RC())
@@ -158,7 +159,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           git.DefaultBranch,
 			branchFromMaster: false,
 			expect: func(res *release.Versions, err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Nil(t, res)
 			},
 		},
@@ -169,7 +170,7 @@ func TestGenerateReleaseVersion(t *testing.T) {
 			branch:           "wrong",
 			branchFromMaster: true,
 			expect: func(res *release.Versions, err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.Nil(t, res)
 			},
 		},

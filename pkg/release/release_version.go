@@ -18,7 +18,6 @@ package release
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -35,7 +34,7 @@ const (
 	ReleaseTypeAlpha    string = "alpha"
 )
 
-// Versions specifies the collection of found release versions
+// Versions specifies the collection of found release versions.
 type Versions struct {
 	prime    string
 	official string
@@ -44,7 +43,7 @@ type Versions struct {
 	alpha    string
 }
 
-// NewReleaseVersions can be used to create a new `*Versions` instance
+// NewReleaseVersions can be used to create a new `*Versions` instance.
 func NewReleaseVersions(prime, official, rc, beta, alpha string) *Versions {
 	return &Versions{
 		prime,
@@ -55,32 +54,32 @@ func NewReleaseVersions(prime, official, rc, beta, alpha string) *Versions {
 	}
 }
 
-// Prime can be used to get the most prominent release version
+// Prime can be used to get the most prominent release version.
 func (r *Versions) Prime() string {
 	return r.prime
 }
 
-// Official can be used to get the ReleaseTypeOfficial from the versions
+// Official can be used to get the ReleaseTypeOfficial from the versions.
 func (r *Versions) Official() string {
 	return r.official
 }
 
-// Rc can be used to get the ReleaseTypeRC from the versions
+// Rc can be used to get the ReleaseTypeRC from the versions.
 func (r *Versions) RC() string {
 	return r.rc
 }
 
-// Beta can be used to get the ReleaseTypeBeta from the versions
+// Beta can be used to get the ReleaseTypeBeta from the versions.
 func (r *Versions) Beta() string {
 	return r.beta
 }
 
-// Alpha can be used to get the ReleaseTypeAlpha from the versions
+// Alpha can be used to get the ReleaseTypeAlpha from the versions.
 func (r *Versions) Alpha() string {
 	return r.alpha
 }
 
-// String returns a string representation for the release versions
+// String returns a string representation for the release versions.
 func (r *Versions) String() string {
 	sb := &strings.Builder{}
 	fmt.Fprintf(sb, "prime: %s", r.prime)
@@ -116,7 +115,7 @@ func (r *Versions) Ordered() (versions []string) {
 	return versions
 }
 
-// GenerateReleaseVersion returns the next build versions for the provided parameters
+// GenerateReleaseVersion returns the next build versions for the provided parameters.
 func GenerateReleaseVersion(
 	releaseType, version, branch string, branchFromMaster bool,
 ) (*Versions, error) {
@@ -150,7 +149,7 @@ func GenerateReleaseVersion(
 	// session/type Other labels such as alpha, beta, and rc are set as needed
 	// Index ordering is important here as it's how they are processed
 	releaseVersions := &Versions{}
-	if branchFromMaster { // nolint:gocritic // a switch case would not make it better
+	if branchFromMaster { //nolint:gocritic // a switch case would not make it better
 		branchMatch := regex.BranchRegex.FindStringSubmatch(branch)
 		if len(branchMatch) < 3 {
 			return nil, fmt.Errorf("invalid formatted branch %s", branch)
@@ -192,12 +191,6 @@ func GenerateReleaseVersion(
 
 		if releaseType == ReleaseTypeOfficial {
 			releaseVersions.official = releaseVersions.prime
-			// Only primary branches get rc releases
-			if regexp.MustCompile(`^release-(\d+)\.(\d+)$`).MatchString(branch) {
-				releaseVersions.rc = fmt.Sprintf(
-					"v%d.%d.%d-rc.0", v.Major, v.Minor, v.Patch+1,
-				)
-			}
 		} else if releaseType == ReleaseTypeRC {
 			releaseVersions.rc = fmt.Sprintf(
 				"%s-rc.%d", releaseVersions.prime, labelID,

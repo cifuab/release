@@ -32,7 +32,7 @@ type announceOptions struct {
 
 var announceOpts = &announceOptions{}
 
-// announceCmd represents the subcommand for `krel announce`
+// announceCmd represents the subcommand for `krel announce`.
 var announceCmd = &cobra.Command{
 	Use:           "announce",
 	Short:         "Build and announce Kubernetes releases",
@@ -50,7 +50,7 @@ func init() {
 		"t",
 		"",
 		"built tag to be announced, will be used for fetching the "+
-			"announcement from the google cloud bucket and to create the annoucements file",
+			"announcement from the google cloud bucket and to create the announcements file",
 	)
 
 	announceCmd.PersistentFlags().BoolVarP(

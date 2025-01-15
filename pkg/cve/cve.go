@@ -21,24 +21,24 @@ import (
 	"fmt"
 	"regexp"
 
-	cvss "github.com/spiegel-im-spiegel/go-cvss/v3/metric"
+	cvss "github.com/goark/go-cvss/v3/metric"
 )
 
-// CVE Information of a linked CVE vulnerability
+// CVE Information of a linked CVE vulnerability.
 type CVE struct {
-	ID            string  `json:"id" yaml:"id"`                                 // CVE ID, eg CVE-2019-1010260
-	Title         string  `json:"title" yaml:"title"`                           // Title of the vulnerability
-	Description   string  `json:"description" yaml:"description"`               // Description text of the vulnerability
-	TrackingIssue string  `json:"issue" yaml:"issue"`                           // Link to the vulnerability tracking issue (url, optional)
-	CVSSVector    string  `json:"vector" yaml:"vector"`                         // Full CVSS vector string, CVSS:3.1/AV:N/AC:H/PR:H/UI:R/S:U/C:H/I:H/A:H
-	CVSSScore     float32 `json:"score" yaml:"score"`                           // Numeric CVSS score (eg 6.2)
-	CVSSRating    string  `json:"rating" yaml:"rating"`                         // Severity bucket (eg Medium)
+	ID            string  `json:"id"                 yaml:"id"`                 // CVE ID, eg CVE-2019-1010260
+	Title         string  `json:"title"              yaml:"title"`              // Title of the vulnerability
+	Description   string  `json:"description"        yaml:"description"`        // Description text of the vulnerability
+	TrackingIssue string  `json:"issue"              yaml:"issue"`              // Link to the vulnerability tracking issue (url, optional)
+	CVSSVector    string  `json:"vector"             yaml:"vector"`             // Full CVSS vector string, CVSS:3.1/AV:N/AC:H/PR:H/UI:R/S:U/C:H/I:H/A:H
+	CVSSScore     float32 `json:"score"              yaml:"score"`              // Numeric CVSS score (eg 6.2)
+	CVSSRating    string  `json:"rating"             yaml:"rating"`             // Severity bucket (eg Medium)
 	CalcLink      string  `json:"calclink,omitempty" yaml:"calclink,omitempty"` // Link to the CVE calculator (automatic)
 	LinkedPRs     []int   `json:"pullrequests"`                                 // List of linked PRs (to remove them from the release notes doc)
 }
 
 // ReadRawInterface populates the CVE data struct from the raw array
-// as returned by the YAML parser
+// as returned by the YAML parser.
 func (cve *CVE) ReadRawInterface(cvedata interface{}) error {
 	if val, ok := cvedata.(map[interface{}]interface{})["id"].(string); ok {
 		cve.ID = val
@@ -65,15 +65,17 @@ func (cve *CVE) ReadRawInterface(cvedata interface{}) error {
 	if val, ok := cvedata.(map[interface{}]interface{})["linkedPRs"].([]interface{}); ok {
 		cve.LinkedPRs = []int{}
 		for _, prid := range val {
-			cve.LinkedPRs = append(cve.LinkedPRs, prid.(int))
+			if prid, ok := prid.(int); ok {
+				cve.LinkedPRs = append(cve.LinkedPRs, prid)
+			}
 		}
 	}
 
 	return nil
 }
 
-// Validate checks the data defined in a CVE map is complete and valid
-func (cve *CVE) Validate() error {
+// Validate checks the data defined in a CVE map is complete and valid.
+func (cve *CVE) Validate() (err error) {
 	// Verify that rating is defined and a known string
 	if cve.CVSSRating == "" {
 		return errors.New("missing CVSS rating from CVE data")
@@ -91,13 +93,18 @@ func (cve *CVE) Validate() error {
 		return errors.New("string CVSS vector missing from CVE data")
 	}
 
+	var bm cvss.Metrics
 	// Parse the vector string to make sure it is well formed
-	bm, err := cvss.NewBase().Decode(cve.CVSSVector)
+	if len(cve.CVSSVector) == 44 {
+		bm, err = cvss.NewBase().Decode(cve.CVSSVector)
+	} else {
+		bm, err = cvss.NewTemporal().Decode(cve.CVSSVector)
+	}
 	if err != nil {
 		return fmt.Errorf("parsing CVSS vector string: %w", err)
 	}
 	cve.CalcLink = fmt.Sprintf(
-		"https://www.first.org/cvss/calculator/%s#%s", bm.Ver.String(), cve.CVSSVector,
+		"https://www.first.org/cvss/calculator/%s#%s", bm.BaseMetrics().Ver.String(), cve.CVSSVector,
 	)
 
 	if cve.CVSSScore == 0 {
@@ -123,7 +130,7 @@ func (cve *CVE) Validate() error {
 	return nil
 }
 
-// ValidateID checks if a CVE IS string is valid
+// ValidateID checks if a CVE IS string is valid.
 func ValidateID(cveID string) error {
 	if cveID == "" {
 		return errors.New("empty CVE ID string")

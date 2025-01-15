@@ -36,7 +36,7 @@ ENV KUBE_CROSSPLATFORMS \
   linux/arm linux/arm64 \
   linux/ppc64le \
   linux/s390x \
-  darwin/amd64 darwin/386 \
+  darwin/amd64 \
   windows/amd64 windows/386
 
 ##------------------------------------------------------------
@@ -71,14 +71,22 @@ RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
 fi
 
 RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
-  && if [ ${targetArch} = "arm64" ] || [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "s390x" ]; then \
+  && if [ ${targetArch} = "arm64" ]; then \
+    echo "deb http://ports.ubuntu.com/ubuntu-ports/ xenial main" > /etc/apt/sources.list.d/ports.list \
+    && apt-key adv --no-tty --keyserver keyserver.ubuntu.com --recv-keys 40976EAF437D05B5 3B4FE6ACC0B21F32 \
+    && apt-get update \
+    && apt-get install -y build-essential gcc-x86-64-linux-gnu; \
+fi
+
+RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
+  && if [ ${targetArch} = "ppc64le" ] || [ ${targetArch} = "s390x" ]; then \
     echo "deb http://ports.ubuntu.com/ubuntu-ports/ xenial main" > /etc/apt/sources.list.d/ports.list \
     && apt-key adv --no-tty --keyserver keyserver.ubuntu.com --recv-keys 40976EAF437D05B5 3B4FE6ACC0B21F32 \
     && apt-get update \
     && apt-get install -y build-essential; \
 fi
 
-ARG PROTOBUF_VERSION
+ENV PROTOBUF_VERSION 23.4
 RUN targetArch=$(echo $TARGETPLATFORM | cut -f2 -d '/') \
   && if [ ${targetArch} = "amd64" ]; then \
   ZIPNAME="protoc-${PROTOBUF_VERSION}-linux-x86_64.zip"; \

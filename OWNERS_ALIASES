@@ -3,37 +3,41 @@
 aliases:
   sig-release-leads:
     - cpanato # SIG Technical Lead
-    - jeremyrickard # SIG Technical Lead
+    - jeremyrickard # SIG Chair
     - justaugustus # SIG Chair
     - puerco # SIG Technical Lead
     - saschagrunert # SIG Chair
+    - Verolop # SIG Technical Lead
   release-engineering-approvers:
-    - cpanato # Release Manager
+    - cici37 # Release Manager
+    - cpanato # subproject owner / Release Manager
+    - jeremyrickard # subproject owner / Release Manager
     - justaugustus # subproject owner / Release Manager
     - palnabarun # Release Manager
-    - puerco # Release Manager
+    - puerco # subproject owner / Release Manager
     - saschagrunert # subproject owner / Release Manager
-    - Verolop # Release Manager
     - xmudrii # Release Manager
+    - Verolop # subproject owner / Release Manager
   release-engineering-reviewers:
     - ameukam # Release Manager Associate
     - jimangel # Release Manager Associate
-    - mkorbi # Release Manager Associate
-    - onlydole # Release Manager Associate
-    - sethmccombs # Release Manager Associate
-    - thejoycekung # Release Manager Associate
-    - wilsonehusin # Release Manager Associate
+    - jrsapi # Release Manager Associate
+    - salaxander # Release Manager Associate
   build-admins:
-    - amwat
-    - BenTheElder
+    - BenjaminKazemi
     - MushuEE
     - spiffxp
+  ci-signal-reporter-approvers:
+    - leonardpahlke
+    - palnabarun
   ci-signal-reporter-reviewers:
-    - leonardpahlke # 1.24 CI Signal Lead
-    - voigt # 1.24 CI Signal Shadow
-    - lauralorenz # 1.24 CI Signal Shadow
-    - shuheiktgw # 1.24 CI Signal Shadow
-    - nivedita-coder # 1.24 CI Signal Shadow
+    - drewhagen # 1.27 CI Signal Shadow
+    - gracenng # 1.27 CI Signal Shadow
+    - lauralorenz # 1.27 CI Signal Lead
+    - leonardpahlke
+    - mehabhalodiya # 1.27 CI Signal Shadow
+    - palnabarun
+    - Vyom-Yadav # 1.27 CI Signal Shadow
   krel-approvers:
     - cpanato
     - puerco
@@ -42,3 +46,27 @@ aliases:
   release-notes-approvers:
     - puerco
     - saschagrunert
+  sig-network-approvers:
+    - andrewsykim
+    - aojea
+    - bowei
+    - caseydavenport
+    - danwinship
+    - dcbw
+    - freehan
+    - khenidak
+    - mrhohn
+    - robscott
+    - thockin
+  sig-network-reviewers:
+    - andrewsykim
+    - aojea
+    - bowei
+    - caseydavenport
+    - danwinship
+    - dcbw
+    - freehan
+    - khenidak
+    - mrhohn
+    - robscott
+    - thockin

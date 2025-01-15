@@ -23,20 +23,21 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"k8s.io/release/pkg/mail"
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-utils/env"
 	"sigs.k8s.io/release-utils/http"
 	"sigs.k8s.io/release-utils/util"
+
+	"k8s.io/release/pkg/mail"
+	"k8s.io/release/pkg/release"
 )
 
 const (
-	sendgridAPIKeyEnvKey = "SENDGRID_API_KEY" // nolint:gosec // it's just the key
+	sendgridAPIKeyEnvKey = "SENDGRID_API_KEY" //nolint:gosec // it's just the key
 	nameFlag             = "name"
 	emailFlag            = "email"
 )
 
-// announceCmd represents the subcommand for `krel announce`
+// announceCmd represents the subcommand for `krel announce`.
 var sendAnnounceCmd = &cobra.Command{
 	Use:   "send",
 	Short: "Announce Kubernetes releases",
@@ -110,18 +111,18 @@ func init() {
 
 func runAnnounce(opts *sendAnnounceOptions, announceRootOpts *announceOptions, rootOpts *rootOptions) error {
 	if err := announceRootOpts.Validate(); err != nil {
-		return fmt.Errorf("validating annoucement send options: %w", err)
+		return fmt.Errorf("validating announcement send options: %w", err)
 	}
 	logrus.Info("Retrieving release announcement from Google Cloud Bucket")
 
 	tag := util.AddTagPrefix(announceRootOpts.tag)
 	u := fmt.Sprintf(
-		"%s/archive/anago-%s/announcement.html",
+		"%s/release/%s/announcement.html",
 		release.URLPrefixForBucket(release.ProductionBucket), tag,
 	)
 	logrus.Infof("Using announcement remote URL: %s", u)
 
-	content, err := http.GetURLResponse(u, false)
+	content, err := http.NewAgent().Get(u)
 	if err != nil {
 		return fmt.Errorf(
 			"unable to retrieve release announcement form url: %s: %w", u, err,
@@ -130,7 +131,7 @@ func runAnnounce(opts *sendAnnounceOptions, announceRootOpts *announceOptions, r
 
 	if announceRootOpts.printOnly {
 		logrus.Infof("The email content is:")
-		fmt.Print(content)
+		fmt.Print(string(content))
 		return nil
 	}
 
@@ -180,7 +181,7 @@ func runAnnounce(opts *sendAnnounceOptions, announceRootOpts *announceOptions, r
 	}
 
 	if yes {
-		if err := m.Send(content, subject); err != nil {
+		if err := m.Send(string(content), subject); err != nil {
 			return fmt.Errorf("unable to send mail: %w", err)
 		}
 	}

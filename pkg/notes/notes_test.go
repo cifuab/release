@@ -27,12 +27,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	kgithub "sigs.k8s.io/release-sdk/github"
+
+	"k8s.io/release/pkg/notes/options"
+)
+
+const (
+	mdSep            = "```"
+	docsBlock        = mdSep + "docs"
+	releaseNoteBlock = mdSep + "release-note"
 )
 
 func githubClient(t *testing.T) (kgithub.Client, context.Context) {
 	_, tokenSet := os.LookupEnv(kgithub.TokenEnvKey)
 	if !tokenSet {
-		t.Skipf("%s is not set", kgithub.TokenEnvKey)
+		t.Skipf("%s environment variable is not set", kgithub.TokenEnvKey)
 	}
 
 	c := kgithub.New()
@@ -91,12 +99,12 @@ func TestDocumentationFromString(t *testing.T) {
 	)
 	// multi line without prefix
 	result := DocumentationFromString(
-		fmt.Sprintf("```docs\r\n%s%s\r\n%s%s\r\n```",
+		fmt.Sprintf(docsBlock+"\r\n%s%s\r\n%s%s\r\n"+mdSep,
 			description1, url1,
 			description2, url2,
 		),
 	)
-	require.Equal(t, 2, len(result))
+	require.Len(t, result, 2)
 	require.Equal(t, expectedDescription1, result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 	require.Equal(t, expectedDescription2, result[1].Description)
@@ -104,12 +112,12 @@ func TestDocumentationFromString(t *testing.T) {
 
 	// multi line without carriage return
 	result = DocumentationFromString(
-		fmt.Sprintf("```docs\n%s%s\n%s%s\n```",
+		fmt.Sprintf(docsBlock+"\n%s%s\n%s%s\n"+mdSep,
 			description1, url1,
 			description2, url2,
 		),
 	)
-	require.Equal(t, 2, len(result))
+	require.Len(t, result, 2)
 	require.Equal(t, expectedDescription1, result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 	require.Equal(t, DocTypeKEP, result[0].Type)
@@ -119,12 +127,12 @@ func TestDocumentationFromString(t *testing.T) {
 
 	// multi line with prefixes
 	result = DocumentationFromString(
-		fmt.Sprintf("```docs\r\n - %s%s\r\n * %s%s\r\n```",
+		fmt.Sprintf(docsBlock+"\r\n - %s%s\r\n * %s%s\r\n"+mdSep,
 			description1, url1,
 			description2, url2,
 		),
 	)
-	require.Equal(t, 2, len(result))
+	require.Len(t, result, 2)
 	require.Equal(t, expectedDescription1, result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 	require.Equal(t, DocTypeKEP, result[0].Type)
@@ -134,41 +142,41 @@ func TestDocumentationFromString(t *testing.T) {
 
 	// single line without star/dash prefix
 	result = DocumentationFromString(
-		fmt.Sprintf("```docs\r\n%s%s\r\n```", description1, url1),
+		fmt.Sprintf(docsBlock+"\r\n%s%s\r\n"+mdSep, description1, url1),
 	)
-	require.Equal(t, 1, len(result))
+	require.Len(t, result, 1)
 	require.Equal(t, expectedDescription1, result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 
 	// single line with star prefix
 	result = DocumentationFromString(
-		fmt.Sprintf("```docs\r\n * %s%s\r\n```", description1, url1),
+		fmt.Sprintf(docsBlock+"\r\n * %s%s\r\n"+mdSep, description1, url1),
 	)
-	require.Equal(t, 1, len(result))
+	require.Len(t, result, 1)
 	require.Equal(t, expectedDescription1, result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 
 	// single line with dash prefix
 	result = DocumentationFromString(
-		fmt.Sprintf("```docs\r\n - %s%s\r\n```", description1, url1),
+		fmt.Sprintf(docsBlock+"\r\n - %s%s\r\n"+mdSep, description1, url1),
 	)
-	require.Equal(t, 1, len(result))
+	require.Len(t, result, 1)
 	require.Equal(t, expectedDescription1, result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 
 	// single line without carriage return
 	result = DocumentationFromString(
-		fmt.Sprintf("```docs\n%s%s\n```", description1, url1),
+		fmt.Sprintf(docsBlock+"\n%s%s\n"+mdSep, description1, url1),
 	)
-	require.Equal(t, 1, len(result))
+	require.Len(t, result, 1)
 	require.Equal(t, expectedDescription1, result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 
 	// single line with empty description
 	result = DocumentationFromString(
-		fmt.Sprintf("```docs\n%s\n```", url1),
+		fmt.Sprintf(docsBlock+"\n%s\n"+mdSep, url1),
 	)
-	require.Equal(t, 1, len(result))
+	require.Len(t, result, 1)
 	require.Equal(t, "", result[0].Description)
 	require.Equal(t, url1, result[0].URL)
 }
@@ -176,21 +184,21 @@ func TestDocumentationFromString(t *testing.T) {
 func TestClassifyURL(t *testing.T) {
 	// A KEP
 	u, err := url.Parse("http://github.com/kubernetes/enhancements/blob/master/keps/sig-cli/kubectl-staging.md")
-	require.Equal(t, err, nil)
+	require.NoError(t, err)
 	result := classifyURL(u)
-	require.Equal(t, result, DocTypeKEP)
+	require.Equal(t, DocTypeKEP, result)
 
 	// An official documentation
 	u, err = url.Parse("https://kubernetes.io/docs/concepts/#kubernetes-objects")
-	require.Equal(t, err, nil)
+	require.NoError(t, err)
 	result = classifyURL(u)
-	require.Equal(t, result, DocTypeOfficial)
+	require.Equal(t, DocTypeOfficial, result)
 
 	// An external documentation
 	u, err = url.Parse("https://google.com/")
-	require.Equal(t, err, nil)
+	require.NoError(t, err)
 	result = classifyURL(u)
-	require.Equal(t, result, DocTypeExternal)
+	require.Equal(t, DocTypeExternal, result)
 }
 
 func TestGetPRNumberFromCommitMessage(t *testing.T) {
@@ -244,7 +252,7 @@ func TestPrettySIG(t *testing.T) {
 
 func TestNoteTextFromString(t *testing.T) {
 	noteBlock := func(note string) string {
-		return "```release-note\n" + note + "\n```"
+		return releaseNoteBlock + "\n" + note + "\n" + mdSep
 	}
 	for _, tc := range []struct {
 		input  string
@@ -253,21 +261,21 @@ func TestNoteTextFromString(t *testing.T) {
 		{
 			noteBlock("test"),
 			func(res string, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "test", res)
 			},
 		},
 		{
 			noteBlock("test\ntest\ntest"),
 			func(res string, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "test\ntest\ntest", res)
 			},
 		},
 		{
 			noteBlock("Action Required: test"),
 			func(res string, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "test", res)
 			},
 		},
@@ -276,7 +284,7 @@ func TestNoteTextFromString(t *testing.T) {
 				"- item\n  item\n  item",
 			),
 			func(res string, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "item\nitem\nitem", res)
 			},
 		},
@@ -285,8 +293,18 @@ func TestNoteTextFromString(t *testing.T) {
 				"- item\n  item\n- item\n  item",
 			),
 			func(res string, err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, "item\nitem\n- item\n  item", res)
+			},
+		},
+		{
+			noteBlock(
+				"",
+			),
+			func(res string, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "empty release note")
+				require.Equal(t, "", res)
 			},
 		},
 	} {
@@ -304,41 +322,79 @@ func TestMatchesExcludeFilter(t *testing.T) {
 			shouldExclude: false,
 		},
 		{
-			input:         "```release-note\nnone\n```",
+			input:         releaseNoteBlock + "\nnone\n" + mdSep,
 			shouldExclude: true,
 		},
 		{
-			input:         "```release-note\nn/a\n```",
+			input:         releaseNoteBlock + "\nn/a\n" + mdSep,
 			shouldExclude: true,
 		},
 		{
-			input:         "```release-note\nNA\n```",
+			input:         releaseNoteBlock + "\nNA\n" + mdSep,
 			shouldExclude: true,
 		},
 		{
-			input:         "```release-note\nthis none should\n```",
+			input:         releaseNoteBlock + "\nthis none should\n" + mdSep,
 			shouldExclude: false,
 		},
 		{
-			input: `@kubernetes/sig-auth-pr-reviews 
-/milestone v1.19
-/priority important-longterm
-/kind cleanup
-/kind deprecation
-
-xref: #81126
-xref: #81152
-xref: https://github.com/kubernetes/website/pull/19630
-
-` + "```" + `release-note
-Action Required: Support for basic authentication via the --basic-auth-file flag has been removed.  Users should migrate to --token-auth-file for similar functionality.
-` + "```" + `
-
-` + "```" + `docs
-Removed "Static Password File" section from https://kubernetes.io/docs/reference/access-authn-authz/authentication/#static-password-file
-https://github.com/kubernetes/website/pull/19630
-` + "```",
+			input: `@kubernetes/sig-auth-pr-reviews
+		/milestone v1.19
+		/priority important-longterm
+		/kind cleanup
+		/kind deprecation
+		
+		xref: #81126
+		xref: #81152
+		xref: https://github.com/kubernetes/website/pull/19630
+		
+		` + mdSep + `release-note
+		Action Required: Support for basic authentication via the --basic-auth-file flag has been removed.  Users should migrate to --token-auth-file for similar functionality.
+		` + mdSep + `
+		
+		` + mdSep + `docs
+		Removed "Static Password File" section from https://kubernetes.io/docs/reference/access-authn-authz/authentication/#static-password-file
+		https://github.com/kubernetes/website/pull/19630
+		` + mdSep,
 			shouldExclude: false,
+		},
+		{
+			input: `
+#### Does this PR introduce a user-facing change?
+<!--
+If no, just write "NONE" in the release-note block below.
+If yes, a release note is required:
+Enter your extended release note in the block below. If the PR requires additional action from users switching to the new release, include the string "action required".
+
+For more information on release notes see: https://git.k8s.io/community/contributors/guide/release-notes.md
+-->
+` + mdSep + `release-note
+
+` + mdSep + `
+
+#### Additional documentation e.g., KEPs (Kubernetes Enhancement Proposals), usage docs, etc.:
+
+<!--
+This section can be blank if this pull request does not require a release note.
+
+When adding links which point to resources within git repositories, like
+KEPs or supporting documentation, please reference a specific commit and avoid
+linking directly to the master branch. This ensures that links reference a
+specific point in time, rather than a document that may change over time.
+
+See here for guidance on getting permanent links to files: https://help.github.com/en/articles/getting-permanent-links-to-files
+
+Please use the following format for linking documentation:
+- [KEP]: <link>
+- [Usage]: <link>
+- [Other doc]: <link>
+-->
+` + mdSep + `docs
+
+` + mdSep + `
+
+`,
+			shouldExclude: false, // noteTextFromString will catch empty release notes
 		},
 	} {
 		res := MatchesExcludeFilter(tc.input)
@@ -346,42 +402,22 @@ https://github.com/kubernetes/website/pull/19630
 	}
 }
 
-func TestApplyMap(t *testing.T) {
-	makeNewNote := func() ReleaseNote {
-		return ReleaseNote{
-			Commit:   "078b355da3cf56668ca1a8a5e36f2b3b52ff1bd8",
-			Text:     "[ACTION REQUIRED] scheduler alpha metrics binding_duration_seconds and scheduling_algorithm_preemption_evaluation_seconds are deprecated, Both of those metrics are now covered as part of framework_extension_point_duration_seconds, the former as a PostFilter the latter and a Bind plugin. The plan is to remove both in 1.21",
-			Markdown: "[ACTION REQUIRED] scheduler alpha metrics binding_duration_seconds and scheduling_algorithm_preemption_evaluation_seconds are deprecated, Both of those metrics are now covered as part of framework_extension_point_duration_seconds, the former as a PostFilter the latter and a Bind plugin. The plan is to remove both in 1.21",
-			// Documentation:  documentation,
-			Author:         "arghya88",
-			AuthorURL:      "https://github.com/arghya88",
-			PrURL:          "https://github.com/kubernetes/kubernetes/pull/95001",
-			PrNumber:       95000,
-			SIGs:           []string{"instrumentation", "scheduling"},
-			Kinds:          []string{"deprecation", "feature"},
-			Areas:          []string{},
-			Feature:        true,
-			Duplicate:      false,
-			DuplicateKind:  false,
-			ActionRequired: true,
-		}
-	}
-
+func testApplyMapHelper(t *testing.T, testDir string, makeNewNote func() *ReleaseNote) {
 	reflectedOriginalNote := reflect.ValueOf(makeNewNote())
 
-	mp, err := NewProviderFromInitString("maps/testdata/unit/")
-	require.Nil(t, err)
+	mp, err := NewProviderFromInitString(testDir)
+	require.NoError(t, err)
 
 	// Read the maps from out test directory
 	testMaps, err := mp.GetMapsForPR(95000)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	lastProp := ""
 
 	for _, testMap := range testMaps {
 		testNote := makeNewNote()
 
 		// Check that the map application does note return error
-		require.Nil(t, testNote.ApplyMap(testMap, false))
+		require.NoError(t, testNote.ApplyMap(testMap, false))
 
 		reflectedNote := reflect.ValueOf(testNote)
 
@@ -414,21 +450,66 @@ func TestApplyMap(t *testing.T) {
 			actualVal := reflect.Indirect(reflectedNote).FieldByName(property).String()
 			require.Equalf(t, expectedValue, actualVal, "Failed %s", testName)
 			require.NotEqualf(t, expectedValue, originalVal.String(), "Failed %s", testName)
-		// Handle string slice cases
 		case []interface{}:
+			// Handle string slice cases
 			actualVal := reflect.Indirect(reflectedNote).FieldByName(property)
 			actualSlice := make([]string, 0)
-			for i := 0; i < actualVal.Len(); i++ {
+			for i := range actualVal.Len() {
 				actualSlice = append(actualSlice, actualVal.Index(i).String())
 			}
 			require.ElementsMatchf(t, expectedValue, actualSlice, "Failed %s", testName)
 		default:
-			require.FailNowf(
-				t, "Unknown case", "Unable to handle case for %s %T",
-				property, testcase.(map[interface{}]interface{})["expected"],
-			)
+			require.FailNowf(t, "Unknown case", "Unable to handle case for %s %T", property, expectedValue)
 		}
 	}
+}
+
+func TestApplyMap(t *testing.T) {
+	makeNewNote := func() *ReleaseNote {
+		return &ReleaseNote{
+			Commit:   "078b355da3cf56668ca1a8a5e36f2b3b52ff1bd8",
+			Text:     "[ACTION REQUIRED] scheduler alpha metrics binding_duration_seconds and scheduling_algorithm_preemption_evaluation_seconds are deprecated, Both of those metrics are now covered as part of framework_extension_point_duration_seconds, the former as a PostFilter the latter and a Bind plugin. The plan is to remove both in 1.21",
+			Markdown: "[ACTION REQUIRED] scheduler alpha metrics binding_duration_seconds and scheduling_algorithm_preemption_evaluation_seconds are deprecated, Both of those metrics are now covered as part of framework_extension_point_duration_seconds, the former as a PostFilter the latter and a Bind plugin. The plan is to remove both in 1.21",
+			// Documentation:  documentation,
+			Author:         "arghya88",
+			AuthorURL:      "https://github.com/arghya88",
+			PrURL:          "https://github.com/kubernetes/kubernetes/pull/95001",
+			PrNumber:       95000,
+			SIGs:           []string{"instrumentation", "scheduling"},
+			Kinds:          []string{"deprecation", "feature"},
+			Areas:          []string{},
+			Feature:        true,
+			Duplicate:      false,
+			DuplicateKind:  false,
+			ActionRequired: true,
+		}
+	}
+
+	testApplyMapHelper(t, "maps/testdata/applymap-unit-test/", makeNewNote)
+}
+
+func TestApplyMapNoSigs(t *testing.T) {
+	makeNewNote := func() *ReleaseNote {
+		return &ReleaseNote{
+			Commit:   "078b355da3cf56668ca1a8a5e36f2b3b52ff1bd8",
+			Text:     "[ACTION REQUIRED] scheduler alpha metrics binding_duration_seconds and scheduling_algorithm_preemption_evaluation_seconds are deprecated, Both of those metrics are now covered as part of framework_extension_point_duration_seconds, the former as a PostFilter the latter and a Bind plugin. The plan is to remove both in 1.21",
+			Markdown: "[ACTION REQUIRED] scheduler alpha metrics binding_duration_seconds and scheduling_algorithm_preemption_evaluation_seconds are deprecated, Both of those metrics are now covered as part of framework_extension_point_duration_seconds, the former as a PostFilter the latter and a Bind plugin. The plan is to remove both in 1.21",
+			// Documentation:  documentation,
+			Author:         "arghya88",
+			AuthorURL:      "https://github.com/arghya88",
+			PrURL:          "https://github.com/kubernetes/kubernetes/pull/95001",
+			PrNumber:       95000,
+			SIGs:           []string{},
+			Kinds:          []string{"deprecation", "feature"},
+			Areas:          []string{},
+			Feature:        true,
+			Duplicate:      false,
+			DuplicateKind:  false,
+			ActionRequired: true,
+		}
+	}
+
+	testApplyMapHelper(t, "maps/testdata/no-sigs-unit-test/", makeNewNote)
 }
 
 func TestDashify(t *testing.T) {
@@ -494,5 +575,61 @@ func TestCapitalizeString(t *testing.T) {
 	} {
 		result := capitalizeString(tc.input)
 		require.Equal(t, tc.expected, result)
+	}
+}
+
+func TestReleaseNoteForPullRequest(t *testing.T) {
+	g, err := NewGatherer(context.Background(), &options.Options{
+		GithubBaseURL: kgithub.GitHubURL,
+		GithubOrg:     DefaultOrg,
+		GithubRepo:    "release",
+	})
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name         string
+		prNr         int
+		expectedNote string
+		notPublish   bool
+		shouldErr    bool
+	}{
+		{
+			name:         "Normal Release Note",
+			prNr:         3378,
+			expectedNote: "Fixed wrong amount of logger steps for `krel obs`.",
+			notPublish:   false,
+			shouldErr:    false,
+		},
+		{
+			name:         "tagged release-note-none",
+			prNr:         3398,
+			expectedNote: "",
+			notPublish:   true,
+			shouldErr:    false,
+		},
+		{
+			name:       "NONE release note",
+			prNr:       3401,
+			notPublish: true,
+			shouldErr:  false,
+		},
+		{
+			name:      "Not a PR",
+			prNr:      3403,
+			shouldErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			note, err := g.ReleaseNoteForPullRequest(tc.prNr)
+			if tc.shouldErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, note)
+			if tc.notPublish {
+				require.True(t, note.DoNotPublish)
+			}
+			require.Equal(t, tc.expectedNote, note.Markdown)
+		})
 	}
 }

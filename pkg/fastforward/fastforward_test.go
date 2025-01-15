@@ -18,9 +18,13 @@ package fastforward
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
+	gogithub "github.com/google/go-github/v60/github"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/release/pkg/fastforward/fastforwardfakes"
 )
 
@@ -43,7 +47,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // success NonInteractive
@@ -53,7 +57,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch, NonInteractive: true}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // success restore failed
@@ -64,7 +68,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // success cleanup failed
@@ -75,7 +79,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch, Cleanup: true}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // success no release branch provided
@@ -83,7 +87,7 @@ func TestRun(t *testing.T) {
 				return &Options{NonInteractive: true}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // success no fast forward required
@@ -92,7 +96,7 @@ func TestRun(t *testing.T) {
 				return &Options{}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // success submit
@@ -100,7 +104,7 @@ func TestRun(t *testing.T) {
 				return &Options{Submit: true}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // success prepare tool repo
@@ -109,7 +113,24 @@ func TestRun(t *testing.T) {
 				return &Options{Submit: true}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
+			},
+		},
+		{ // success release cut issue is open
+			prepare: func(mock *fastforwardfakes.FakeImpl) *Options {
+				mock.IsReleaseBranchReturns(true)
+				mock.RepoHasRemoteBranchReturns(true, nil)
+
+				title := fmt.Sprintf("Cut v%s.0 release", strings.TrimPrefix(branch, "release-"))
+				mock.ListIssuesReturns([]*gogithub.Issue{{Title: &title}}, nil)
+
+				// never called
+				mock.AskReturns("", true, errTest)
+
+				return &Options{Branch: branch}
+			},
+			assert: func(err error) {
+				require.NoError(t, err)
 			},
 		},
 		{ // failure prepare tool repo on Chdir
@@ -119,7 +140,7 @@ func TestRun(t *testing.T) {
 				return &Options{Submit: true}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure prepare tool repo on CloneOrOpenGitHubRepo
@@ -129,7 +150,7 @@ func TestRun(t *testing.T) {
 				return &Options{Submit: true}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure prepare tool repo on RemoveAll
@@ -139,7 +160,7 @@ func TestRun(t *testing.T) {
 				return &Options{Submit: true}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure prepare tool repo on mkdirtemp
@@ -149,7 +170,7 @@ func TestRun(t *testing.T) {
 				return &Options{Submit: true}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // success token
@@ -160,7 +181,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch, NonInteractive: true}
 			},
 			assert: func(err error) {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			},
 		},
 		{ // failure with token on RepoSetURL
@@ -173,7 +194,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch, NonInteractive: true}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure with token on CloneOrOpenGitHubRepo
@@ -185,7 +206,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch, NonInteractive: true}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on Submit
@@ -194,7 +215,7 @@ func TestRun(t *testing.T) {
 				return &Options{Submit: true}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on RepoLatestReleaseBranch
@@ -203,7 +224,7 @@ func TestRun(t *testing.T) {
 				return &Options{}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on RepoHasRemoteTag
@@ -212,7 +233,7 @@ func TestRun(t *testing.T) {
 				return &Options{}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on CloneOrOpenDefaultGitHubRepoSSH
@@ -221,16 +242,16 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
-		{ // failure not a rrlease branch
+		{ // failure not a release branch
 			prepare: func(mock *fastforwardfakes.FakeImpl) *Options {
 				mock.IsReleaseBranchReturns(false)
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on RepoHasRemoteBranch
@@ -240,7 +261,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure no remote branch
@@ -250,7 +271,18 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
+			},
+		},
+		{ // failure on ListIssues
+			prepare: func(mock *fastforwardfakes.FakeImpl) *Options {
+				mock.IsReleaseBranchReturns(true)
+				mock.RepoHasRemoteBranchReturns(true, nil)
+				mock.ListIssuesReturns(nil, errTest)
+				return &Options{Branch: branch}
+			},
+			assert: func(err error) {
+				require.Error(t, err)
 			},
 		},
 		{ // failure on RepoCurrentBranch
@@ -261,7 +293,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on checkout
@@ -272,7 +304,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on ConfigureGlobalDefaultUserAndEmail
@@ -283,7 +315,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on RepoMergeBase
@@ -294,7 +326,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on first RepoDescribe
@@ -305,7 +337,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on second RepoDescribe
@@ -316,7 +348,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure main tag != merge base tag
@@ -327,7 +359,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on first RepoHead
@@ -338,7 +370,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on RepoMerge
@@ -349,7 +381,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on second RepoHead
@@ -360,7 +392,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on Ask
@@ -371,7 +403,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 		{ // failure on RepoPush
@@ -383,7 +415,7 @@ func TestRun(t *testing.T) {
 				return &Options{Branch: branch}
 			},
 			assert: func(err error) {
-				require.NotNil(t, err)
+				require.Error(t, err)
 			},
 		},
 	} {

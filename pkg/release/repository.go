@@ -29,17 +29,18 @@ import (
 	"sigs.k8s.io/release-sdk/git"
 )
 
-// Repo is a wrapper around a kubernetes/release repository
+// Repo is a wrapper around a kubernetes/release repository.
 type Repo struct {
 	repo Repository
 }
 
-// NewRepo creates a new release repository
+// NewRepo creates a new release repository.
 func NewRepo() *Repo {
 	return &Repo{}
 }
 
 // Repository is an interface for interacting with a git repository
+//
 //counterfeiter:generate . Repository
 type Repository interface {
 	Describe(opts *git.DescribeOptions) (string, error)
@@ -52,7 +53,7 @@ type Repository interface {
 }
 
 // Open assumes the current working directory as repository root and tries to
-// open it
+// open it.
 func (r *Repo) Open() error {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -66,12 +67,12 @@ func (r *Repo) Open() error {
 	return nil
 }
 
-// SetRepo can be used to set the internal repository implementation
+// SetRepo can be used to set the internal repository implementation.
 func (r *Repo) SetRepo(repo Repository) {
 	r.repo = repo
 }
 
-// GetTag returns the tag from the current repository
+// GetTag returns the tag from the current repository.
 func (r *Repo) GetTag() (string, error) {
 	describeOutput, err := r.repo.Describe(
 		git.NewDescribeOptions().
@@ -86,7 +87,7 @@ func (r *Repo) GetTag() (string, error) {
 	return fmt.Sprintf("%s-%s", describeOutput, t), nil
 }
 
-// CheckState verifies that the repository is in the requested state
+// CheckState verifies that the repository is in the requested state.
 func (r *Repo) CheckState(expOrg, expRepo, expRev string, nomock bool) error {
 	logrus.Info("Verifying repository state")
 
@@ -160,20 +161,11 @@ func (r *Repo) CheckState(expOrg, expRepo, expRev string, nomock bool) error {
 	)
 
 	logrus.Info("Verifying remote HEAD commit")
-	args := []string{
-		"--heads",
-		foundRemote.Name(),
-		fmt.Sprintf("refs/heads/%s", branch),
-	}
+	ref := "refs/heads/" + branch
 	if branch == "" {
-		args = []string{
-			"--tags",
-			"--heads",
-			foundRemote.Name(),
-			fmt.Sprintf("refs/tags/%s^{}", expRev),
-		}
+		ref = fmt.Sprintf("refs/tags/%s^{}", expRev)
 	}
-	lsRemoteOut, err := r.repo.LsRemote(args...)
+	lsRemoteOut, err := r.repo.LsRemote(foundRemote.Name(), ref)
 	if err != nil {
 		return fmt.Errorf("getting remote HEAD: %w", err)
 	}

@@ -27,8 +27,33 @@ RUN apt-get update && \
         bsdmainutils \
         build-essential \
         google-cloud-sdk \
-        jq && \
-    rm -rf /var/lib/apt/lists/*
+        jq \
+        rpmlint \
+    && rm -rf /var/lib/apt/lists/*
+
+# install goreleaser
+ARG GORELEASER_VERSION=v2.0.1
+ARG GORELEASER_SHA=48cea4e770468c85d3ee11e6c2fb7b59af9f28080781d47c48c59ba95b2eb86b
+RUN  \
+    GORELEASER_DOWNLOAD_FILE=goreleaser_Linux_x86_64.tar.gz && \
+    GORELEASER_DOWNLOAD_URL=https://github.com/goreleaser/goreleaser/releases/download/${GORELEASER_VERSION}/${GORELEASER_DOWNLOAD_FILE} && \
+    wget ${GORELEASER_DOWNLOAD_URL} && \
+    echo "$GORELEASER_SHA $GORELEASER_DOWNLOAD_FILE" | sha256sum -c - || exit 1 && \
+    tar -xzf $GORELEASER_DOWNLOAD_FILE -C /usr/bin/ goreleaser && \
+    rm $GORELEASER_DOWNLOAD_FILE && \
+    goreleaser -v
+
+# install ko
+ARG KO_VERSION=v0.15.4
+ARG KO_SHA=511c88351d061cd510900376ae4731dfd916ca39c1cc7de5fc6f2b5cbde2007c
+RUN  \
+    KO_DOWNLOAD_FILE=ko_${KO_VERSION#v}_Linux_x86_64.tar.gz && \
+    KO_DOWNLOAD_URL=https://github.com/ko-build/ko/releases/download/${KO_VERSION}/${KO_DOWNLOAD_FILE} && \
+    wget ${KO_DOWNLOAD_URL} && \
+    echo "$KO_SHA $KO_DOWNLOAD_FILE" | sha256sum -c - || exit 1 && \
+    tar -xzf $KO_DOWNLOAD_FILE -C /usr/bin/ ko && \
+    rm $KO_DOWNLOAD_FILE && \
+    ko version
 
 # Some tests require a working git executable, so we configure a pseudo-user
 RUN git config --global user.name releng-ci-user && \

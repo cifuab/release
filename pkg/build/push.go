@@ -28,9 +28,10 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-utils/tar"
 	"sigs.k8s.io/release-utils/util"
+
+	"k8s.io/release/pkg/release"
 )
 
 type stageFile struct {
@@ -167,7 +168,6 @@ func (bi *Instance) Push() error {
 }
 
 func (bi *Instance) findLatestVersion() (latestVersion string, err error) {
-	// Check if latest build uses bazel
 	if bi.opts.RepoRoot == "" {
 		bi.opts.RepoRoot, err = os.Getwd()
 		if err != nil {
@@ -175,28 +175,18 @@ func (bi *Instance) findLatestVersion() (latestVersion string, err error) {
 		}
 	}
 
-	isBazel, err := release.BuiltWithBazel(bi.opts.RepoRoot)
 	if err != nil {
 		return "", fmt.Errorf("identify if release built with Bazel: %w", err)
 	}
 
 	latestVersion = bi.opts.Version
 	if bi.opts.Version == "" {
-		if isBazel {
-			logrus.Info("Using Bazel build version")
-			version, err := release.ReadBazelVersion(bi.opts.RepoRoot)
-			if err != nil {
-				return "", fmt.Errorf("read Bazel build version: %w", err)
-			}
-			latestVersion = version
-		} else {
-			logrus.Info("Using Dockerized build version")
-			version, err := release.ReadDockerizedVersion(bi.opts.RepoRoot)
-			if err != nil {
-				return "", fmt.Errorf("read Dockerized build version: %w", err)
-			}
-			latestVersion = version
+		logrus.Info("Using Dockerized build version")
+		version, err := release.ReadDockerizedVersion(bi.opts.RepoRoot)
+		if err != nil {
+			return "", fmt.Errorf("read Dockerized build version: %w", err)
 		}
+		latestVersion = version
 	}
 
 	logrus.Infof("Using build version: %s", latestVersion)
@@ -225,27 +215,19 @@ func (bi *Instance) findLatestVersion() (latestVersion string, err error) {
 		latestVersion += "-" + bi.opts.VersionSuffix
 	}
 
-	setupBuildDir(bi, isBazel)
+	setupBuildDir(bi)
 
 	return strings.TrimSpace(latestVersion), nil
 }
 
-func setupBuildDir(bi *Instance, isBazel bool) {
+func setupBuildDir(bi *Instance) {
 	if bi.opts.BuildDir == "" {
 		logrus.Info("BuildDir is not set, setting it automatically")
-		if isBazel {
-			logrus.Infof(
-				"Release is build by bazel, using BuildDir as %s",
-				release.BazelBuildDir,
-			)
-			bi.opts.BuildDir = release.BazelBuildDir
-		} else {
-			logrus.Infof(
-				"Release is build in a container, using BuildDir as %s",
-				release.BuildDir,
-			)
-			bi.opts.BuildDir = release.BuildDir
-		}
+		logrus.Infof(
+			"Release is build in a container, using BuildDir as %s",
+			release.BuildDir,
+		)
+		bi.opts.BuildDir = release.BuildDir
 	}
 	// convert buildDir to an absolute path
 	bi.opts.BuildDir = filepath.Join(bi.opts.RepoRoot, bi.opts.BuildDir)
@@ -295,7 +277,7 @@ func (bi *Instance) CheckReleaseBucket() error {
 	return nil
 }
 
-// StageLocalArtifacts locally stages the release artifacts
+// StageLocalArtifacts locally stages the release artifacts.
 func (bi *Instance) StageLocalArtifacts() error {
 	logrus.Info("Staging local artifacts")
 	stageDir := filepath.Join(bi.opts.BuildDir, release.GCSStagePath, bi.opts.Version)
@@ -457,7 +439,8 @@ func (bi *Instance) PushContainerImages() error {
 
 // CopyStagedFromGCS copies artifacts from GCS and between buckets as needed.
 // TODO: Investigate if it's worthwhile to use any of the bi.objStore.Get*Path()
-//       functions here or create a new one to populate staging paths
+//
+//	functions here or create a new one to populate staging paths
 func (bi *Instance) CopyStagedFromGCS(stagedBucket, buildVersion string) error {
 	logrus.Info("Copy staged release artifacts from GCS")
 
@@ -536,10 +519,10 @@ func (bi *Instance) StageLocalSourceTree(workDir, buildVersion string) error {
 }
 
 // DeleteLocalSourceTarball the deletion of the tarball is now decoupled from
-// StageLocalSourceTree to be able to use it during the anago.stage function
+// StageLocalSourceTree to be able to use it during the anago.stage function.
 func (bi *Instance) DeleteLocalSourceTarball(workDir string) error {
 	tarballPath := filepath.Join(workDir, release.SourcesTar)
-	logrus.Infof("Removing local source tree tarball " + tarballPath)
+	logrus.Info("Removing local source tree tarball " + tarballPath)
 	if err := os.RemoveAll(tarballPath); err != nil {
 		return fmt.Errorf("remove local source tarball: %w", err)
 	}

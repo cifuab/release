@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// nolint:dupl // test duplications are fine
+//nolint:dupl // test duplications are fine
 package anago_test
 
 import (
@@ -23,12 +23,13 @@ import (
 	intoto "github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/release/pkg/anago"
-	"k8s.io/release/pkg/anago/anagofakes"
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/bom/pkg/provenance"
 	"sigs.k8s.io/bom/pkg/spdx"
 	"sigs.k8s.io/release-sdk/git"
+
+	"k8s.io/release/pkg/anago"
+	"k8s.io/release/pkg/anago/anagofakes"
+	"k8s.io/release/pkg/release"
 )
 
 func generateTestingStageState(params *testStateParameters) *anago.StageState {
@@ -72,9 +73,9 @@ func TestInitLogFileStage(t *testing.T) {
 
 		err := sut.InitLogFile()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -108,9 +109,9 @@ func TestCheckPrerequisitesStage(t *testing.T) {
 
 		err := sut.CheckPrerequisites()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -144,9 +145,9 @@ func TestCheckReleaseBranchStateStage(t *testing.T) {
 
 		err := sut.CheckReleaseBranchState()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -173,9 +174,10 @@ func TestGenerateReleaseVersionStage(t *testing.T) {
 		opts := anago.DefaultStageOptions()
 		sut := anago.NewDefaultStage(opts)
 
+		createReleaseBranch := tc.createReleaseBranch
 		sut.SetState(
 			generateTestingStageState(&testStateParameters{
-				createReleaseBranch: &tc.createReleaseBranch,
+				createReleaseBranch: &createReleaseBranch,
 			}),
 		)
 
@@ -184,9 +186,9 @@ func TestGenerateReleaseVersionStage(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.GenerateReleaseVersion()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -219,9 +221,9 @@ func TestPrepareWorkspaceStage(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.PrepareWorkspace()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -370,7 +372,7 @@ func TestTagRepository(t *testing.T) {
 		opts.ReleaseBranch = tc.releaseBranch
 		state := anago.DefaultState()
 		err := opts.Validate(state)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		sut := anago.NewDefaultStage(opts)
 
@@ -384,9 +386,9 @@ func TestTagRepository(t *testing.T) {
 
 		err = sut.TagRepository()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -426,9 +428,9 @@ func TestBuild(t *testing.T) {
 
 		err := sut.Build()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -463,9 +465,9 @@ func TestGenerateChangelog(t *testing.T) {
 
 		err := sut.GenerateChangelog()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -563,9 +565,9 @@ func TestStageArtifacts(t *testing.T) {
 
 		err := sut.StageArtifacts()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -593,9 +595,9 @@ func TestSubmitStageImpl(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.Submit(false)
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -689,9 +691,9 @@ func TestGenerateBillOfMaterials(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.GenerateBillOfMaterials()
 		if tc.shouldError {
-			require.NotNil(t, err, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -724,9 +726,9 @@ func TestVerifyArtifactsImpl(t *testing.T) {
 		)
 		err := sut.VerifyArtifacts()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }

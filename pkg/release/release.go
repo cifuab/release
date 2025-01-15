@@ -50,28 +50,26 @@ const (
 	DefaultK8sRepo = git.DefaultGithubRepo
 	DefaultK8sRef  = git.DefaultRef
 
-	// TODO(vdf): Need to reference K8s Infra project here
+	// TODO(vdf): Need to reference K8s Infra project here.
 	DefaultKubernetesStagingProject = "kubernetes-release-test"
 	DefaultRelengStagingTestProject = "k8s-staging-releng-test"
 	DefaultRelengStagingProject     = "k8s-staging-releng"
 	DefaultDiskSize                 = "500"
-	BucketPrefix                    = "kubernetes-release-"
-	BucketPrefixK8sInfra            = "k8s-release-"
 
-	versionReleaseRE   = `v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[a-zA-Z0-9]+)*\.*(0|[1-9][0-9]*)?`
+	versionReleaseRE   = `v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-?([a-zA-Z0-9]+\.(0|[1-9][0-9]*)\.)?`
 	versionBuildRE     = `([0-9]{1,})\+([0-9a-f]{5,40})`
 	versionWorkspaceRE = `gitVersion ([^\n]+)`
 	versionDirtyRE     = `(-dirty)`
 
 	KubernetesTar = "kubernetes.tar.gz"
 
-	// Staged source code tarball of Kubernetes
+	// Staged source code tarball of Kubernetes.
 	SourcesTar = "src.tar.gz"
 
-	// Root path on the bucket for staged artifacts
+	// Root path on the bucket for staged artifacts.
 	StagePath = "stage"
 
-	// Path where the release container images are stored
+	// Path where the release container images are stored.
 	ImagesPath = "release-images"
 
 	// GCSStagePath is the directory where release artifacts are staged before
@@ -93,44 +91,39 @@ const (
 	// WindowsLocalPath is the directory where Windows GCE scripts are created.
 	WindowsLocalPath = ReleaseStagePath + "/full/kubernetes/cluster/gce/windows"
 
-	// CIBucketLegacy is the default bucket for Kubernetes CI releases
+	// CIBucketLegacy is the default bucket for Kubernetes CI releases.
 	CIBucketLegacy = "kubernetes-release-dev"
 
-	// CIBucketK8sInfra is the community infra bucket for Kubernetes CI releases
+	// CIBucketK8sInfra is the community infra bucket for Kubernetes CI releases.
 	CIBucketK8sInfra = "k8s-release-dev"
 
-	// TestBucket is the default bucket for mocked Kubernetes releases
+	// TestBucket is the default bucket for mocked Kubernetes releases.
 	TestBucket = "kubernetes-release-gcb"
 
-	// ProductionBucket is the default bucket for Kubernetes releases
-	ProductionBucket = "kubernetes-release"
+	// ProductionBucket is the default bucket for Kubernetes releases.
+	// Owned by SIG k8s Infra: https://git.k8s.io/community/sig-k8s-infra
+	ProductionBucket = "767373bbdcb8270361b96548387bf2a9ad0d48758c35"
 
-	// ProductionBucketURL is the url for the ProductionBucket
+	// ProductionBucketURL is the url for the ProductionBucket.
 	ProductionBucketURL = "https://dl.k8s.io"
 
-	// Production registry root URL
+	// Production registry root URL.
 	GCRIOPathProd = image.ProdRegistry
 
-	// Staging registry root URL prefix
+	// Staging registry root URL prefix.
 	GCRIOPathStagingPrefix = image.StagingRepoPrefix
 
-	// Staging registry root URL
+	// Staging registry root URL.
 	GCRIOPathStaging = GCRIOPathStagingPrefix + image.StagingRepoSuffix
 
-	// Mock staging registry root URL
+	// Mock staging registry root URL.
 	GCRIOPathMock = GCRIOPathStaging + "/mock"
 
 	// BuildDir is the default build output directory.
 	BuildDir = "_output"
 
-	// The default bazel build directory.
-	BazelBuildDir = "bazel-bin/build"
-
-	// Archive path is the root path in the bucket where releases are archived
-	ArchivePath = "archive"
-
-	// Publishing bot issue repository
-	PubBotRepoOrg  = "k8s-release-robot"
+	// Publishing bot issue repository.
+	PubBotRepoOrg  = "kubernetes"
 	PubBotRepoName = "sig-release"
 
 	DockerHubEnvKey   = "DOCKERHUB_TOKEN" // Env var containing the docker key
@@ -139,27 +132,14 @@ const (
 	ProvenanceFilename = "provenance.json" // Name of the SLSA provenance file (used in stage and release)
 )
 
-var (
-	ManifestImages = []string{
-		"conformance",
-		"kube-apiserver",
-		"kube-controller-manager",
-		"kube-proxy",
-		"kube-scheduler",
-	}
-
-	SupportedArchitectures = []string{
-		"amd64",
-		"arm",
-		"arm64",
-		"ppc64le",
-		"s390x",
-	}
-
-	FastArchitectures = []string{
-		"amd64",
-	}
-)
+var ManifestImages = []string{
+	"conformance",
+	"kube-apiserver",
+	"kube-controller-manager",
+	"kube-proxy",
+	"kube-scheduler",
+	"kubectl",
+}
 
 // GetToolOrg checks if the 'TOOL_ORG' environment variable is set.
 // If 'TOOL_ORG' is non-empty, it returns the value. Otherwise, it returns DefaultToolOrg.
@@ -177,6 +157,13 @@ func GetToolRepo() string {
 // If 'TOOL_REF' is non-empty, it returns the value. Otherwise, it returns DefaultToolRef.
 func GetToolRef() string {
 	return env.Default("TOOL_REF", DefaultToolRef)
+}
+
+// GetForceBuildKrel checks if the 'FORCE_BUILD_KREL' environment variable is
+// set.  If 'FORCE_BUILD_KREL' is non-empty, it returns the value. Otherwise,
+// it returns "false".
+func GetForceBuildKrel() string {
+	return env.Default("FORCE_BUILD_KREL", "false")
 }
 
 // GetK8sOrg checks if the 'K8S_ORG' environment variable is set.
@@ -201,27 +188,7 @@ func GetK8sRef() string {
 // GetK8sRef() point to their default values.
 func IsDefaultK8sUpstream() bool {
 	return GetK8sOrg() == DefaultK8sOrg &&
-		GetK8sRepo() == DefaultK8sRepo &&
 		GetK8sRef() == DefaultK8sRef
-}
-
-// BuiltWithBazel determines whether the most recent Kubernetes release was built with Bazel.
-func BuiltWithBazel(workDir string) (bool, error) {
-	bazelBuild := filepath.Join(workDir, BazelBuildDir, ReleaseTarsPath, KubernetesTar)
-	dockerBuild := filepath.Join(workDir, BuildDir, ReleaseTarsPath, KubernetesTar)
-	return util.MoreRecent(bazelBuild, dockerBuild)
-}
-
-// ReadBazelVersion reads the version from a Bazel build.
-func ReadBazelVersion(workDir string) (string, error) {
-	version, err := os.ReadFile(filepath.Join(workDir, "bazel-bin", "version"))
-	if os.IsNotExist(err) {
-		// The check for version in bazel-genfiles can be removed once everyone is
-		// off of versions before 0.25.0.
-		// https://github.com/bazelbuild/bazel/issues/8651
-		version, err = os.ReadFile(filepath.Join(workDir, "bazel-genfiles", "version"))
-	}
-	return string(version), err
 }
 
 // ReadDockerizedVersion reads the version from a Dockerized Kubernetes build.
@@ -241,9 +208,9 @@ func ReadDockerizedVersion(workDir string) (string, error) {
 func IsValidReleaseBuild(build string) (bool, error) {
 	// If the tag has a plus sign, then we force the versionBuildRe to match
 	if strings.Contains(build, "+") {
-		return regexp.MatchString("("+versionReleaseRE+`(\.`+versionBuildRE+")"+versionDirtyRE+"?)", build)
+		return regexp.MatchString("("+versionReleaseRE+`(`+versionBuildRE+")"+versionDirtyRE+"?)", build)
 	}
-	return regexp.MatchString("("+versionReleaseRE+`(\.`+versionBuildRE+")?"+versionDirtyRE+"?)", build)
+	return regexp.MatchString("("+versionReleaseRE+`(`+versionBuildRE+")?"+versionDirtyRE+"?)", build)
 }
 
 // IsDirtyBuild checks if build version is dirty.
@@ -275,11 +242,12 @@ func GetWorkspaceVersion() (string, error) {
 	return version, nil
 }
 
-// URLPrefixForBucket returns the URL prefix for the provided bucket string
+// URLPrefixForBucket returns the URL prefix for the provided bucket string.
 func URLPrefixForBucket(bucket string) string {
 	bucket = strings.TrimPrefix(bucket, object.GcsPrefix)
-	urlPrefix := fmt.Sprintf("https://storage.googleapis.com/%s", bucket)
-	if bucket == ProductionBucket {
+	urlPrefix := "https://storage.googleapis.com/" + bucket
+	const legacyBucket = "kubernetes-release"
+	if bucket == ProductionBucket || bucket == legacyBucket {
 		urlPrefix = ProductionBucketURL
 	}
 	return urlPrefix
@@ -372,7 +340,7 @@ func WriteChecksums(rootPath string) error {
 					return fmt.Errorf("get hash from file: %w", err)
 				}
 
-				files = append(files, fmt.Sprintf("%s  %s", sha, path))
+				files = append(files, fmt.Sprintf("%s  %s", sha, strings.TrimPrefix(path, rootPath+"/")))
 				return nil
 			},
 		); err != nil {
@@ -461,7 +429,7 @@ func WriteChecksums(rootPath string) error {
 	return nil
 }
 
-// CreatePubBotBranchIssue creates an issue on GitHub to notify
+// CreatePubBotBranchIssue creates an issue on GitHub to notify.
 func CreatePubBotBranchIssue(branchName string) error {
 	// Check the GH token is set
 	if os.Getenv(github.TokenEnvKey) == "" {
@@ -475,6 +443,7 @@ func CreatePubBotBranchIssue(branchName string) error {
 	issueBody += "Please update the publishing-bot's configuration to also publish this new branch.\n\n"
 	issueBody += "/sig release\n"
 	issueBody += "/area release-eng\n"
+	issueBody += "/assign @kubernetes/release-managers\n"
 	issueBody += "/milestone v" + strings.TrimPrefix(branchName, "release-") + "\n"
 
 	// Create the issue on GitHub
@@ -491,7 +460,7 @@ func CreatePubBotBranchIssue(branchName string) error {
 	return nil
 }
 
-// Calls docker login to log into docker hub using a token from the environment
+// Calls docker login to log into docker hub using a token from the environment.
 func DockerHubLogin() error {
 	// Check the environment  variable is set
 	if os.Getenv(DockerHubEnvKey) == "" {
@@ -499,7 +468,7 @@ func DockerHubLogin() error {
 	}
 	// Pipe the token into docker login
 	cmd := command.New(
-		"docker", "login", fmt.Sprintf("--username=%s", DockerHubUserName),
+		"docker", "login", "--username="+DockerHubUserName,
 		"--password", os.Getenv(DockerHubEnvKey),
 	)
 	// Run docker login:

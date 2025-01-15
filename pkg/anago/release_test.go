@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// nolint:dupl // test duplications are fine
+//nolint:dupl // test duplications are fine
 package anago_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/release/pkg/anago"
 	"k8s.io/release/pkg/anago/anagofakes"
 	"k8s.io/release/pkg/release"
@@ -67,9 +68,9 @@ func TestInitLogFileRelease(t *testing.T) {
 
 		err := sut.InitLogFile()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -103,9 +104,9 @@ func TestCheckPrerequisitesRelease(t *testing.T) {
 
 		err := sut.CheckPrerequisites()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -139,9 +140,9 @@ func TestCheckReleaseBranchStateRelease(t *testing.T) {
 
 		err := sut.CheckReleaseBranchState()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -168,9 +169,10 @@ func TestGenerateReleaseVersionRelease(t *testing.T) {
 		opts := anago.DefaultReleaseOptions()
 
 		sut := anago.NewDefaultRelease(opts)
+		createReleaseBranch := tc.createReleaseBranch
 		sut.SetState(
 			generateTestingReleaseState(&testStateParameters{
-				createReleaseBranch: &tc.createReleaseBranch,
+				createReleaseBranch: &createReleaseBranch,
 			}),
 		)
 
@@ -180,9 +182,9 @@ func TestGenerateReleaseVersionRelease(t *testing.T) {
 
 		err := sut.GenerateReleaseVersion()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -208,12 +210,16 @@ func TestPushArtifacts(t *testing.T) {
 			},
 			shouldError: true,
 		},
-		{ // ValidateImages fails
-			prepare: func(mock *anagofakes.FakeReleaseImpl) {
-				mock.ValidateImagesReturns(err)
-			},
-			shouldError: true,
-		},
+		// TODO: bypassing this for now due to the fail in the promotion process
+		// that sign the images. We will release the Feb/2023 patch releases without full
+		// signatures but we will sign those in a near future in a deatached process
+		// revert this change when the patches are out
+		// { // ValidateImages fails
+		// 	prepare: func(mock *anagofakes.FakeReleaseImpl) {
+		// 		mock.ValidateImagesReturns(err)
+		// 	},
+		// 	shouldError: true,
+		// },
 		{ // PusblishVersion fails
 			prepare: func(mock *anagofakes.FakeReleaseImpl) {
 				mock.PublishVersionReturns(err)
@@ -253,9 +259,9 @@ func TestPushArtifacts(t *testing.T) {
 
 		err := sut.PushArtifacts()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -283,9 +289,9 @@ func TestPrepareWorkspaceRelease(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.PrepareWorkspace()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -313,9 +319,9 @@ func TestSubmitReleaseImpl(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.Submit(false)
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -346,9 +352,9 @@ func TestCreateAnnouncement(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.CreateAnnouncement()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -397,9 +403,9 @@ func TestPushGitObjects(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.PushGitObjects()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -430,9 +436,9 @@ func TestUpdateGitHubPage(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.UpdateGitHubPage()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -463,9 +469,9 @@ func TestCheckProvenance(t *testing.T) {
 		sut.SetImpl(mock)
 		err := sut.CheckProvenance()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }

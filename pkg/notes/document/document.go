@@ -30,7 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"sigs.k8s.io/promo-tools/v3/image"
+
 	"sigs.k8s.io/release-utils/hash"
 
 	"k8s.io/release/pkg/cve"
@@ -38,6 +38,8 @@ import (
 	"k8s.io/release/pkg/notes/options"
 	"k8s.io/release/pkg/release"
 )
+
+const prodRegistry = "registry.k8s.io"
 
 // Document represents the underlying structure of a release notes document.
 type Document struct {
@@ -112,7 +114,7 @@ func fetchImageMetadata(dir, tag string) (*ImageMetadata, error) {
 	}
 
 	manifests, err := release.NewImages().GetManifestImages(
-		image.ProdRegistry, tag, dir, nil,
+		prodRegistry, tag, dir, nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get manifest images: %w", err)
@@ -124,12 +126,12 @@ func fetchImageMetadata(dir, tag string) (*ImageMetadata, error) {
 
 	res := ImageMetadata{}
 
-	// Link the images to their corresponding Google Cloud container registry
+	// Link the images to their corresponding Google Cloud artifact registry
 	// location.
-	const linkBase = "https://console.cloud.google.com/gcr/images/k8s-artifacts-prod/us/"
+	const linkBase = "https://console.cloud.google.com/artifacts/docker/k8s-artifacts-prod/southamerica-east1/images/"
 
 	for manifest, tempArchitectures := range manifests {
-		imageName := strings.TrimPrefix(manifest, image.ProdRegistry+"/")
+		imageName := strings.TrimPrefix(manifest, prodRegistry+"/")
 
 		architectures := []string{}
 		for _, architecture := range tempArchitectures {
@@ -159,7 +161,7 @@ func markdownLink(text, link string) string {
 	return fmt.Sprintf("[%s](%s)", text, link)
 }
 
-// fileInfo fetches file metadata for files in `dir` matching `patterns`
+// fileInfo fetches file metadata for files in `dir` matching `patterns`.
 func fileInfo(dir string, patterns []string, urlPrefix, tag string) ([]File, error) {
 	var files []File
 	for _, pattern := range patterns {
@@ -247,7 +249,7 @@ var kindMap = map[notes.Kind]notes.Kind{
 }
 
 // GatherReleaseNotesDocument creates a new gatherer and collects the release
-// notes into a fresh document
+// notes into a fresh document.
 func GatherReleaseNotesDocument(
 	opts *options.Options, previousRev, currentRev string,
 ) (*Document, error) {
@@ -264,7 +266,7 @@ func GatherReleaseNotesDocument(
 	return doc, nil
 }
 
-// New assembles an organized document from an unorganized set of release notes
+// New assembles an organized document from an unorganized set of release notes.
 func New(
 	releaseNotes *notes.ReleaseNotes,
 	previousRev, currentRev string,
@@ -305,13 +307,13 @@ func New(
 			doc.CVEList = append(doc.CVEList, newcve)
 		}
 
-		if note.DoNotPublish {
-			logrus.Debugf("skipping PR %d as (marked to not be published)", pr)
+		if !note.IsMapped && note.DoNotPublish {
+			logrus.Debugf("Skipping PR %d as (marked to not be published)", pr)
 			continue
 		}
 
 		// TODO: Refactor the logic here and add testing.
-		if note.DuplicateKind { // nolint:gocritic // a switch case would not make it better
+		if note.DuplicateKind { //nolint:gocritic // a switch case would not make it better
 			kind := mapKind(highestPriorityKind(note.Kinds))
 			if existing, ok := kindCategory[kind]; ok {
 				*existing.NoteEntries = append(*existing.NoteEntries, processNote(note.Markdown))
@@ -392,7 +394,7 @@ func (d *Document) RenderMarkdownTemplate(bucket, tars, images, templateSpec str
 // template returns either the default template, a template from file or an
 // inline string template. The `templateSpec` must be in the format of
 // `go-template:{default|path/to/template.ext}` or
-// `go-template:inline:string`
+// `go-template:inline:string`.
 func (d *Document) template(templateSpec string) (string, error) {
 	if templateSpec == options.GoTemplateDefault {
 		return defaultReleaseNotesTemplate, nil
@@ -531,6 +533,7 @@ func mapKind(kind notes.Kind) notes.Kind {
 }
 
 func prettyKind(kind notes.Kind) string {
+	//nolint:exhaustive // all cases are covered by default
 	switch kind {
 	case notes.KindAPIChange:
 		return "API Change"

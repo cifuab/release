@@ -27,7 +27,7 @@ func TestNewProviderFromInitString(t *testing.T) {
 		initString   string
 		returnsError bool
 	}{
-		{initString: "maps/testdata/unit/", returnsError: false},
+		{initString: "maps/testdata/applymap-unit-test/", returnsError: false},
 		{initString: "/this/shoud/not/really.exist/as/a/d33rect0ree", returnsError: true},
 		{initString: "gs://bucket-name/map/path/", returnsError: true},
 		{initString: "github://kubernetes/sig-release/maps", returnsError: true},
@@ -35,40 +35,40 @@ func TestNewProviderFromInitString(t *testing.T) {
 	for _, testCase := range testCases {
 		provider, err := NewProviderFromInitString(testCase.initString)
 		if !testCase.returnsError {
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.NotNil(t, provider)
 		} else {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		}
 	}
 }
 
 func TestParseReleaseNotesMap(t *testing.T) {
-	maps, err := ParseReleaseNotesMap("maps/testdata/unit/maps.yaml")
-	require.Nil(t, err)
-	require.GreaterOrEqual(t, 5, len(*maps))
+	maps, err := ParseReleaseNotesMap("maps/testdata/applymap-unit-test/maps.yaml")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, 6, len(*maps))
 
 	maps, err = ParseReleaseNotesMap("maps/testdata/fullmap.yaml")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.GreaterOrEqual(t, 4, len(*maps))
 }
 
 func TestGetMapsForPR(t *testing.T) {
 	provider, err := NewProviderFromInitString("maps/testdata")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	maps, err := provider.GetMapsForPR(95000)
-	require.Nil(t, err)
-	require.GreaterOrEqual(t, 5, len(maps))
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, 7, len(maps))
 
 	maps, err = provider.GetMapsForPR(123)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.GreaterOrEqual(t, 4, len(maps))
 }
 
 func TestReleaseNotesMapIntegrity(t *testing.T) {
 	maps, err := ParseReleaseNotesMap("maps/testdata/fullmap.yaml")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(*maps), 1)
 
 	// The first map in the test file contains a full map
@@ -95,8 +95,8 @@ func TestReleaseNotesMapIntegrity(t *testing.T) {
 	require.ElementsMatch(t, []string{"api-machinery"}, *testMap.ReleaseNote.SIGs)
 
 	require.NotNil(t, *testMap.ReleaseNote.Feature)
-	require.Equal(t, true, *testMap.ReleaseNote.Feature)
+	require.True(t, *testMap.ReleaseNote.Feature)
 
 	require.NotNil(t, *testMap.ReleaseNote.ActionRequired)
-	require.Equal(t, false, *testMap.ReleaseNote.ActionRequired)
+	require.False(t, *testMap.ReleaseNote.ActionRequired)
 }

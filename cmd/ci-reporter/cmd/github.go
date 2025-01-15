@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
+
 	"sigs.k8s.io/release-utils/env"
 )
 
@@ -35,12 +36,12 @@ var githubCmd = &cobra.Command{
 	Long:   "CI-Signal reporter that generates only a github report.",
 	PreRun: setGithubConfig,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return RunReport(cfg, &CIReporters{GithubReporter{}})
+		return RunReport(cmd.Context(), cfg, &CIReporters{GithubReporter{}})
 	},
 }
 
-// look for token in environment variables & create a github client
-func setGithubConfig(cmd *cobra.Command, args []string) {
+// look for token in environment variables & create a github client.
+func setGithubConfig(_ *cobra.Command, _ []string) {
 	cfg.GithubToken = env.Default("GITHUB_TOKEN", "")
 	if cfg.GithubToken == "" {
 		logrus.Fatal("Please specify your Github access token via the environment variable 'GITHUB_TOKEN' to generate a ci-report")
@@ -54,7 +55,7 @@ func setGithubConfig(cmd *cobra.Command, args []string) {
 	cfg.GithubClient = githubv4.NewClient(httpClient)
 }
 
-// GithubReporterName used to identify github reporter
+// GithubReporterName used to identify github reporter.
 var GithubReporterName CIReporterName = "github"
 
 func init() {
@@ -65,16 +66,16 @@ func init() {
 // GithubReporter implementation
 //
 
-// GithubReporter github CIReporter implementation
+// GithubReporter github CIReporter implementation.
 type GithubReporter struct{}
 
-// GetCIReporterHead implementation from CIReporter
+// GetCIReporterHead implementation from CIReporter.
 func (r GithubReporter) GetCIReporterHead() CIReporterInfo {
 	return CIReporterInfo{Name: GithubReporterName}
 }
 
-// CollectReportData implementation from CIReporter
-func (r GithubReporter) CollectReportData(cfg *Config) ([]*CIReportRecord, error) {
+// CollectReportData implementation from CIReporter.
+func (r GithubReporter) CollectReportData(ctx context.Context, cfg *Config) ([]*CIReportRecord, error) {
 	// set filter configuration
 	denyListFilter := map[FilteredFieldName][]FilteredListVal{}
 	allowListFilter := map[FilteredFieldName][]FilteredListVal{
@@ -87,7 +88,7 @@ func (r GithubReporter) CollectReportData(cfg *Config) ([]*CIReportRecord, error
 		allowListFilter[FilteredFieldName("K8s Release")] = []FilteredListVal{FilteredListVal(cfg.ReleaseVersion)}
 	}
 	// request github projectboard data
-	githubReportData, err := GetGithubReportData(*cfg, denyListFilter, allowListFilter)
+	githubReportData, err := GetGithubReportData(ctx, *cfg, denyListFilter, allowListFilter)
 	if err != nil {
 		return nil, fmt.Errorf("getting GitHub report data: %w", err)
 	}
@@ -126,10 +127,10 @@ const ciSignalProjectBoardID = "PN_kwDOAM_34M4AAThW"
 type ciSignalProjectBoardKey string
 
 const (
-	// custom project board keys that get extracted via graphql
+	// custom project board keys that get extracted via graphql.
 	IssueURLKey       = ciSignalProjectBoardKey("Issue URL")
 	PullRequestURLKey = ciSignalProjectBoardKey("PullRequest URL")
-	// project board column headers
+	// project board column headers.
 	TestgridBoardKey       = ciSignalProjectBoardKey("Testgrid Board")
 	SlackDiscussionLinkKey = ciSignalProjectBoardKey("Slack discussion link")
 	StatusKey              = ciSignalProjectBoardKey("Status")
@@ -140,7 +141,7 @@ const (
 
 // GitHubProjectBoardFieldSettings settings for a column of a github beta project board
 // --> | Testgrid Board | -> { ID: XXX, Name: Testgrid Board, ... }
-// This information is required to match the settings ID to the name since table entries ref. id
+// This information is required to match the settings ID to the name since table entries ref. id.
 type GitHubProjectBoardFieldSettings struct {
 	Width   int `json:"width"`
 	Options []struct {
@@ -151,9 +152,11 @@ type GitHubProjectBoardFieldSettings struct {
 }
 
 // This struct represents a graphql query
-// 	that is getting executed using the githubv4
-// 	graphql library: https://github.com/shurcooL/githubv4
-// 	for the GitHub graphql api, see: https://docs.github.com/en/issues/trying-out-the-new-projects-experience/using-the-api-to-manage-projects
+//
+//	that is getting executed using the githubv4
+//	graphql library: https://github.com/shurcooL/githubv4
+//	for the GitHub graphql api, see: https://docs.github.com/en/issues/trying-out-the-new-projects-experience/using-the-api-to-manage-projects
+//
 // ENHANCEMENT: filter via request, see: https://dgraph.io/docs/graphql/queries/search-filtering/
 type ciSignalProjectBoardGraphQLQuery struct {
 	Node struct {
@@ -202,19 +205,19 @@ type (
 		Fields map[fieldName]fieldValue
 	}
 
-	// Types for project board filtering
+	// Types for project board filtering.
 	FilteredFieldName string
 	FilteredListVal   string
 )
 
-// GetGithubReportData used to request the raw report data from github
-func GetGithubReportData(cfg Config, denyListFieldFilter, allowListFieldFilter map[FilteredFieldName][]FilteredListVal) ([]*TransformedProjectBoardItem, error) {
+// GetGithubReportData used to request the raw report data from github.
+func GetGithubReportData(ctx context.Context, cfg Config, denyListFieldFilter, allowListFieldFilter map[FilteredFieldName][]FilteredListVal) ([]*TransformedProjectBoardItem, error) {
 	// lookup project board information
 	var queryCiSignalProjectBoard ciSignalProjectBoardGraphQLQuery
 	variablesProjectBoardFields := map[string]interface{}{
 		"projectBoardID": githubv4.ID(ciSignalProjectBoardID),
 	}
-	if err := cfg.GithubClient.Query(context.Background(), &queryCiSignalProjectBoard, variablesProjectBoardFields); err != nil {
+	if err := cfg.GithubClient.Query(ctx, &queryCiSignalProjectBoard, variablesProjectBoardFields); err != nil {
 		return nil, err
 	}
 

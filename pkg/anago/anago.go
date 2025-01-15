@@ -21,18 +21,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-sdk/git"
 	"sigs.k8s.io/release-utils/log"
 	"sigs.k8s.io/release-utils/util"
 	"sigs.k8s.io/release-utils/version"
+
+	"k8s.io/release/pkg/announce"
+	"k8s.io/release/pkg/release"
 )
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
-
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt anagofakes/fake_release_client.go > anagofakes/_fake_release_client.go && mv anagofakes/_fake_release_client.go anagofakes/fake_release_client.go"
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt anagofakes/fake_release_impl.go > anagofakes/_fake_release_impl.go && mv anagofakes/_fake_release_impl.go anagofakes/fake_release_impl.go"
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt anagofakes/fake_stage_client.go > anagofakes/_fake_stage_client.go && mv anagofakes/_fake_stage_client.go anagofakes/fake_stage_client.go"
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt anagofakes/fake_stage_impl.go > anagofakes/_fake_stage_impl.go && mv anagofakes/_fake_stage_impl.go anagofakes/fake_stage_impl.go"
 const (
 	// workspaceDir is the global directory where the stage and release process
 	// happens.
@@ -41,13 +46,16 @@ const (
 	// gitRoot is the local repository root of k/k.
 	gitRoot = workspaceDir + "/src/k8s.io/kubernetes"
 
-	// releaseNotesHTMLFile is the name of the release notes in HTML
+	// releaseNotesHTMLFile is the name of the release notes in HTML.
 	releaseNotesHTMLFile = workspaceDir + "/src/release-notes.html"
 
-	// releaseNotesJSONFile is the file containing the release notes in json format
+	// releaseNotesJSONFile is the file containing the release notes in json format.
 	releaseNotesJSONFile = workspaceDir + "/src/release-notes.json"
 
-	// The default license for all artifacts
+	// announcementHTMLFile is the file containing the release announcement in HTML format.
+	announcementHTMLFile = workspaceDir + "/src/" + announce.AnnouncementFile
+
+	// The default license for all artifacts.
 	LicenseIdentifier = "Apache-2.0"
 )
 
@@ -89,7 +97,7 @@ func (o *Options) String() string {
 }
 
 // Validate if the options are correctly set.
-func (o *Options) Validate(state *State) error {
+func (o *Options) Validate() error {
 	logrus.Infof("Validating generic options: %s", o.String())
 
 	if o.ReleaseType != release.ReleaseTypeAlpha &&
@@ -103,6 +111,10 @@ func (o *Options) Validate(state *State) error {
 		return fmt.Errorf("invalid release branch: %s", o.ReleaseBranch)
 	}
 
+	return nil
+}
+
+func (o *Options) ValidateBuildVersion(state *State) error {
 	// Verify the build version is correct:
 	correct, err := release.IsValidReleaseBuild(o.BuildVersion)
 	if err != nil {
@@ -117,7 +129,6 @@ func (o *Options) Validate(state *State) error {
 		return fmt.Errorf("invalid build version: %s: %w", o.BuildVersion, err)
 	}
 	state.semverBuildVersion = semverBuildVersion
-
 	return nil
 }
 
@@ -138,10 +149,10 @@ func (o *Options) ContainerRegistry() string {
 }
 
 // State holds all inferred and calculated values from the release process
-// it's state mutates as each step es executed
+// it's state mutates as each step es executed.
 type State struct {
 	// logFile is the internal logging file target.
-	logFile string // nolint:structcheck // it is used
+	logFile string
 
 	// semverBuildVersion is the parsed build version which is set after the
 	// validation.
@@ -157,10 +168,10 @@ type State struct {
 	startTime time.Time
 }
 
-// DefaultState returns a new empty State
+// DefaultState returns a new empty State.
 func DefaultState() *State {
 	// The default state is empty, it will be initialized after ValidateOptions()
-	// runs in Stage/Release. It will change as the satege/release processes move forward
+	// runs in Stage/Release. It will change as the stage/release processes move forward
 	return &State{
 		startTime: time.Now(),
 	}
@@ -174,12 +185,12 @@ func (s *State) SetVersions(versions *release.Versions) {
 	s.versions = versions
 }
 
-// StageState holds the release process state
+// StageState holds the release process state.
 type StageState struct {
 	*State
 }
 
-// DefaultStageState createa a new default `ReleaseOptions`.
+// DefaultStageState create a new default `StageState`.
 func DefaultStageState() *StageState {
 	return &StageState{
 		State: DefaultState(),
@@ -191,7 +202,7 @@ type StageOptions struct {
 	*Options
 }
 
-// DefaultStageOptions createa a new default `StageOptions`.
+// DefaultStageOptions create a new default `StageOptions`.
 func DefaultStageOptions() *StageOptions {
 	return &StageOptions{
 		Options: DefaultOptions(),
@@ -205,9 +216,18 @@ func (s *StageOptions) String() string {
 
 // Validate if the options are correctly set.
 func (s *StageOptions) Validate(state *State) error {
-	if err := s.Options.Validate(state); err != nil {
+	if err := s.Options.Validate(); err != nil {
 		return fmt.Errorf("validating generic options: %w", err)
 	}
+
+	// build version is optional for staging, but if provided we should
+	// validate it.
+	if s.Options.BuildVersion != "" {
+		if err := s.Options.ValidateBuildVersion(state); err != nil {
+			return errors.New("validating build version")
+		}
+	}
+
 	return nil
 }
 
@@ -244,7 +264,7 @@ func (s *Stage) Run() error {
 		return fmt.Errorf("init log file: %w", err)
 	}
 
-	logger := log.NewStepLogger(11)
+	logger := log.NewStepLogger(12)
 	v := version.GetVersionInfo()
 	logger.Infof("Using krel version: %s", v.GitVersion)
 
@@ -307,12 +327,12 @@ func (s *Stage) Run() error {
 	return nil
 }
 
-// ReleaseState holds the release process state
+// ReleaseState holds the release process state.
 type ReleaseState struct {
 	*State
 }
 
-// DefaultReleaseState createa a new default `ReleaseOptions`.
+// DefaultReleaseState create a new default `ReleaseOptions`.
 func DefaultReleaseState() *ReleaseState {
 	return &ReleaseState{
 		State: DefaultState(),
@@ -324,7 +344,7 @@ type ReleaseOptions struct {
 	*Options
 }
 
-// DefaultReleaseOptions createa a new default `ReleaseOptions`.
+// DefaultReleaseOptions create a new default `ReleaseOptions`.
 func DefaultReleaseOptions() *ReleaseOptions {
 	return &ReleaseOptions{
 		Options: DefaultOptions(),
@@ -338,8 +358,11 @@ func (r *ReleaseOptions) String() string {
 
 // Validate if the options are correctly set.
 func (r *ReleaseOptions) Validate(state *State) error {
-	if err := r.Options.Validate(state); err != nil {
+	if err := r.Options.Validate(); err != nil {
 		return fmt.Errorf("validating generic options: %w", err)
+	}
+	if err := r.Options.ValidateBuildVersion(state); err != nil {
+		return fmt.Errorf("validating build version: %w", err)
 	}
 	return nil
 }
@@ -368,7 +391,7 @@ func (r *Release) Submit(stream bool) error {
 	return nil
 }
 
-// Run for for `Release` struct finishes a previously staged release.
+// Run for `Release` struct finishes a previously staged release.
 func (r *Release) Run() error {
 	r.client.InitState()
 
@@ -407,9 +430,14 @@ func (r *Release) Run() error {
 
 	logger.WithStep().Info("Checking artifacts provenance")
 	if err := r.client.CheckProvenance(); err != nil {
-		// For now, we ony notify provenance errors as not to treat
+		// For now, we only notify provenance errors as not to treat
 		// them as fatal while we finish testing SLSA compliance.
 		logrus.Warnf("Unable to check provenance attestation: %v", err)
+	}
+
+	logger.WithStep().Info("Creating announcement")
+	if err := r.client.CreateAnnouncement(); err != nil {
+		return fmt.Errorf("create announcement: %w", err)
 	}
 
 	logger.WithStep().Info("Pushing artifacts")
@@ -422,19 +450,9 @@ func (r *Release) Run() error {
 		return fmt.Errorf("push git objects: %w", err)
 	}
 
-	logger.WithStep().Info("Creating announcement")
-	if err := r.client.CreateAnnouncement(); err != nil {
-		return fmt.Errorf("create announcement: %w", err)
-	}
-
 	logger.WithStep().Info("Updating GitHub release page")
 	if err := r.client.UpdateGitHubPage(); err != nil {
 		return fmt.Errorf("updating github page: %w", err)
-	}
-
-	logger.WithStep().Info("Archiving release")
-	if err := r.client.Archive(); err != nil {
-		return fmt.Errorf("archive release: %w", err)
 	}
 
 	logger.Info("Release done")

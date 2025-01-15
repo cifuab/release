@@ -35,7 +35,7 @@ const expectedPatchOut = `### Timeline
 
 Next patch release is **1.18.4**
 
-End of Life for **1.18** is **TBD**
+**1.18** enters maintenance mode on **TBD** and End of Life is on **TBD**.
 
 | PATCH RELEASE | CHERRY PICK DEADLINE | TARGET DATE | NOTE |
 |---------------|----------------------|-------------|------|
@@ -47,7 +47,7 @@ End of Life for **1.18** is **TBD**
 
 Next patch release is **1.17.7**
 
-End of Life for **1.17** is **TBD**
+**1.17** enters maintenance mode on **TBD** and End of Life is on **TBD**.
 
 | PATCH RELEASE | CHERRY PICK DEADLINE | TARGET DATE | NOTE |
 |---------------|----------------------|-------------|------|
@@ -58,7 +58,7 @@ End of Life for **1.17** is **TBD**
 
 Next patch release is **1.16.11**
 
-End of Life for **1.16** is **TBD**
+**1.16** enters maintenance mode on **TBD** and End of Life is on **TBD**.
 
 | PATCH RELEASE | CHERRY PICK DEADLINE | TARGET DATE | NOTE |
 |---------------|----------------------|-------------|------|
@@ -187,12 +187,12 @@ func TestRun(t *testing.T) {
 			},
 			expect: func(err error, out string) {
 				// checks the error of run func call
-				require.Nil(t, err)
+				require.NoError(t, err)
 
 				// compare the output generated with the expected
 				outFile, errFile := os.ReadFile(out)
 				require.NoError(t, errFile)
-				require.Equal(t, string(outFile), expectedPatchOut)
+				require.Equal(t, expectedPatchOut, string(outFile))
 			},
 		},
 		{
@@ -203,12 +203,12 @@ func TestRun(t *testing.T) {
 			},
 			expect: func(err error, out string) {
 				// checks the error of run func call
-				require.Nil(t, err)
+				require.NoError(t, err)
 
 				// compare the output generated with the expected
 				outFile, errFile := os.ReadFile(out)
 				require.NoError(t, errFile)
-				require.Equal(t, string(outFile), expectedReleaseOut)
+				require.Equal(t, expectedReleaseOut, string(outFile))
 			},
 		},
 		{
@@ -219,7 +219,7 @@ func TestRun(t *testing.T) {
 			},
 			expect: func(err error, out string) {
 				// checks the error of run func call
-				require.NotNil(t, err)
+				require.Error(t, err)
 
 				// should not create the output file
 				_, errFile := os.Stat(out)
@@ -234,7 +234,7 @@ func TestRun(t *testing.T) {
 			},
 			expect: func(err error, out string) {
 				// checks the error of run func call
-				require.NotNil(t, err)
+				require.Error(t, err)
 
 				// should not create the output file
 				_, errFile := os.Stat(out)
@@ -247,12 +247,12 @@ func TestRun(t *testing.T) {
 		t.Logf("Test case: %s", tc.name)
 
 		tempDir, err := os.MkdirTemp("/tmp", "schedule-test")
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		tc.options.outputFile = fmt.Sprintf("%s/output-%d.md", tempDir, tcCount)
 
 		err = run(tc.options)
 		tc.expect(err, tc.options.outputFile)
-		require.Nil(t, os.RemoveAll(tempDir))
+		require.NoError(t, os.RemoveAll(tempDir))
 	}
 }

@@ -29,15 +29,15 @@ import (
 	"sigs.k8s.io/release-sdk/object"
 )
 
-// MapProvider interface that obtains release notes maps from a source
+// MapProvider interface that obtains release notes maps from a source.
 type MapProvider interface {
 	GetMapsForPR(int) ([]*ReleaseNotesMap, error)
 }
 
-// NewProviderFromInitString creates a new map provider from an initialization string
+// NewProviderFromInitString creates a new map provider from an initialization string.
 func NewProviderFromInitString(initString string) (MapProvider, error) {
 	// If init string starts with gs:// return a CloudStorageProvider
-	if initString[0:5] == object.GcsPrefix {
+	if len(initString) >= 5 && initString[0:5] == object.GcsPrefix {
 		// Currently for illustration purposes
 		return nil, errors.New("CloudStorageProvider is not yet implemented")
 	}
@@ -55,7 +55,7 @@ func NewProviderFromInitString(initString string) (MapProvider, error) {
 	return &DirectoryMapProvider{Path: initString}, nil
 }
 
-// ParseReleaseNotesMap Parses a Release Notes Map
+// ParseReleaseNotesMap Parses a Release Notes Map.
 func ParseReleaseNotesMap(mapPath string) (*[]ReleaseNotesMap, error) {
 	notemaps := []ReleaseNotesMap{}
 	yamlReader, err := os.Open(mapPath)
@@ -68,7 +68,7 @@ func ParseReleaseNotesMap(mapPath string) (*[]ReleaseNotesMap, error) {
 
 	for {
 		noteMap := ReleaseNotesMap{}
-		if err := decoder.Decode(&noteMap); err == io.EOF {
+		if err := decoder.Decode(&noteMap); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return nil, fmt.Errorf("decoding note map: %w", err)
@@ -117,18 +117,21 @@ type ReleaseNotesMap struct {
 	} `json:"releasenote"`
 
 	DataFields map[string]ReleaseNotesDataField `json:"datafields,omitempty" yaml:"datafields,omitempty"`
+
+	// PRBody is the full original PR body.
+	PRBody *string `json:"pr_body,omitempty" yaml:"pr_body,omitempty"`
 }
 
-// ReleaseNotesDataField extra data added to a release note
+// ReleaseNotesDataField extra data added to a release note.
 type ReleaseNotesDataField interface{}
 
-// DirectoryMapProvider is a provider that gets maps from a directory
+// DirectoryMapProvider is a provider that gets maps from a directory.
 type DirectoryMapProvider struct {
 	Path string
 	Maps map[int][]*ReleaseNotesMap
 }
 
-// readMaps Open the dir and read dir notes
+// readMaps Open the dir and read dir notes.
 func (mp *DirectoryMapProvider) readMaps() error {
 	var fileList []string
 	mp.Maps = map[int][]*ReleaseNotesMap{}
@@ -156,7 +159,7 @@ func (mp *DirectoryMapProvider) readMaps() error {
 	return err
 }
 
-// GetMapsForPR get the release notes maps for a specific PR number
+// GetMapsForPR get the release notes maps for a specific PR number.
 func (mp *DirectoryMapProvider) GetMapsForPR(pr int) (notesMap []*ReleaseNotesMap, err error) {
 	if mp.Maps == nil {
 		err := mp.readMaps()

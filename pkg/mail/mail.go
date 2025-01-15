@@ -18,6 +18,7 @@ package mail
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -27,7 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// GoogleGroup is a simple google group representation
+// GoogleGroup is a simple google group representation.
 type GoogleGroup string
 
 const (
@@ -52,23 +53,25 @@ func NewSender(apiKey string) *Sender {
 	}
 }
 
-// SetSendClient can be used to set the sendgrid sender client
+// SetSendClient can be used to set the sendgrid sender client.
 func (s *Sender) SetSendClient(client SendClient) {
 	s.sendClient = client
 }
 
-// SetSendClient can be used to set the sendgrid API client
+// SetSendClient can be used to set the sendgrid API client.
 func (s *Sender) SetAPIClient(client APIClient) {
 	s.apiClient = client
 }
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
 //counterfeiter:generate . SendClient
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt mailfakes/fake_send_client.go > mailfakes/_fake_send_client.go && mv mailfakes/_fake_send_client.go mailfakes/fake_send_client.go"
 type SendClient interface {
 	Send(*mail.SGMailV3) (*rest.Response, error)
 }
 
 //counterfeiter:generate . APIClient
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt mailfakes/fake_apiclient.go > mailfakes/_fake_apiclient.go && mv mailfakes/_fake_apiclient.go mailfakes/fake_apiclient.go"
 type APIClient interface {
 	API(rest.Request) (*rest.Response, error)
 }
@@ -164,7 +167,7 @@ func (s *Sender) SetDefaultSender() error {
 
 func (s *Sender) SetSender(name, email string) error {
 	if email == "" {
-		return fmt.Errorf("email must not be empty")
+		return errors.New("email must not be empty")
 	}
 	s.sender = mail.NewEmail(name, email)
 	logrus.WithField("sender", s.sender).Debugf("Sender set")
@@ -175,7 +178,7 @@ func (s *Sender) SetRecipients(recipientArgs ...string) error {
 	l := len(recipientArgs)
 
 	if l%2 != 0 {
-		return fmt.Errorf("must be called with alternating recipient's names and email addresses")
+		return errors.New("must be called with alternating recipient's names and email addresses")
 	}
 
 	recipients := make([]*mail.Email, l/2)
@@ -184,7 +187,7 @@ func (s *Sender) SetRecipients(recipientArgs ...string) error {
 		name := recipientArgs[i*2]
 		email := recipientArgs[i*2+1]
 		if email == "" {
-			return fmt.Errorf("email must not be empty")
+			return errors.New("email must not be empty")
 		}
 		recipients[i] = mail.NewEmail(name, email)
 	}
@@ -195,7 +198,7 @@ func (s *Sender) SetRecipients(recipientArgs ...string) error {
 	return nil
 }
 
-// SetGoogleGroupRecipient can be used to set multiple Google Groups as recipient
+// SetGoogleGroupRecipient can be used to set multiple Google Groups as recipient.
 func (s *Sender) SetGoogleGroupRecipients(groups ...GoogleGroup) error {
 	args := []string{}
 	for _, group := range groups {
@@ -208,7 +211,7 @@ func (s *Sender) SetGoogleGroupRecipients(groups ...GoogleGroup) error {
 	return s.SetRecipients(args...)
 }
 
-// GetRecipients can be used to get the recipients
+// GetRecipients can be used to get the recipients.
 func (s *Sender) GetRecipients() []*mail.Email {
 	return s.recipients
 }

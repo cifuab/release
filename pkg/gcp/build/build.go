@@ -34,12 +34,13 @@ import (
 	"google.golang.org/api/cloudbuild/v1"
 	"google.golang.org/api/option"
 
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-sdk/gcli"
 	"sigs.k8s.io/release-sdk/object"
 	"sigs.k8s.io/release-utils/command"
 	"sigs.k8s.io/release-utils/tar"
 	"sigs.k8s.io/yaml"
+
+	"k8s.io/release/pkg/release"
 )
 
 const (
@@ -78,12 +79,6 @@ func NewDefaultOptions() *Options {
 func PrepareBuilds(o *Options) error {
 	if o.ConfigDir == "" {
 		return errors.New("expected a config directory to be provided")
-	}
-
-	if bazelWorkspace := os.Getenv("BUILD_WORKSPACE_DIRECTORY"); bazelWorkspace != "" {
-		if err := os.Chdir(bazelWorkspace); err != nil {
-			return fmt.Errorf("failed to chdir to bazel workspace (%s): %w", bazelWorkspace, err)
-		}
 	}
 
 	if o.BuildDir == "" {
@@ -233,7 +228,7 @@ func RunSingleJob(o *Options, jobName, uploaded, version string, subs map[string
 			return errors.New("selected disk size must be greater than 0 GB")
 		}
 
-		diskSizeArg := fmt.Sprintf("--disk-size=%s", o.DiskSize)
+		diskSizeArg := "--disk-size=" + o.DiskSize
 		args = append(args, diskSizeArg)
 	}
 

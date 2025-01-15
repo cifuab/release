@@ -18,7 +18,6 @@ package mail_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/sendgrid/rest"
@@ -48,7 +47,7 @@ func TestSetDefaultSender(t *testing.T) {
 					Body:       `{"first_name": "Firstname", "last_name": "Lastname"}`,
 				}, nil)
 			},
-			expect: func(err error, desc string) { require.Nil(t, err, desc) },
+			expect: func(err error, desc string) { require.NoError(t, err, desc) },
 		},
 		{
 			description: "Should fail with wrong JSON in second response",
@@ -62,7 +61,7 @@ func TestSetDefaultSender(t *testing.T) {
 					Body:       "wrong-json",
 				}, nil)
 			},
-			expect: func(err error, desc string) { require.NotNil(t, err, desc) },
+			expect: func(err error, desc string) { require.Error(t, err, desc) },
 		},
 		{
 			description: "Should fail with wrong status code in second response",
@@ -73,7 +72,7 @@ func TestSetDefaultSender(t *testing.T) {
 				}, nil)
 				c.APIReturnsOnCall(1, &rest.Response{StatusCode: 400}, nil)
 			},
-			expect: func(err error, desc string) { require.NotNil(t, err, desc) },
+			expect: func(err error, desc string) { require.Error(t, err, desc) },
 		},
 		{
 			description: "Should fail with failing second response",
@@ -84,7 +83,7 @@ func TestSetDefaultSender(t *testing.T) {
 				}, nil)
 				c.APIReturnsOnCall(1, nil, errors.New(""))
 			},
-			expect: func(err error, desc string) { require.NotNil(t, err, desc) },
+			expect: func(err error, desc string) { require.Error(t, err, desc) },
 		},
 		{
 			description: "Should fail with wrong JSON in first response",
@@ -94,21 +93,21 @@ func TestSetDefaultSender(t *testing.T) {
 					Body:       "wrong-json",
 				}, nil)
 			},
-			expect: func(err error, desc string) { require.NotNil(t, err, desc) },
+			expect: func(err error, desc string) { require.Error(t, err, desc) },
 		},
 		{
 			description: "Should fail with wrong status code in first response",
 			prep: func(c *mailfakes.FakeAPIClient) {
 				c.APIReturnsOnCall(0, &rest.Response{StatusCode: 400}, nil)
 			},
-			expect: func(err error, desc string) { require.NotNil(t, err, desc) },
+			expect: func(err error, desc string) { require.Error(t, err, desc) },
 		},
 		{
 			description: "Should fail with failing first response",
 			prep: func(c *mailfakes.FakeAPIClient) {
 				c.APIReturnsOnCall(0, nil, errors.New(""))
 			},
-			expect: func(err error, desc string) { require.NotNil(t, err, desc) },
+			expect: func(err error, desc string) { require.Error(t, err, desc) },
 		},
 	} {
 		m := mail.NewSender("")
@@ -125,9 +124,9 @@ func TestSetDefaultSender(t *testing.T) {
 func TestMailSender(t *testing.T) {
 	t.Parallel()
 
-	it.Run(t, "SetRecipients", testRecipient)
-	it.Run(t, "SetSender", testSender)
-	it.Run(t, "Send", testSend)
+	it.Run(t, "SetRecipients", recipientTest)
+	it.Run(t, "SetSender", senderTest)
+	it.Run(t, "Send", sendTest)
 
 	it.Run(t, "main", func(t *testing.T) {
 		m := mail.NewSender("")
@@ -143,7 +142,7 @@ func TestMailSender(t *testing.T) {
 	})
 }
 
-func testSend(t *testing.T) {
+func sendTest(t *testing.T) {
 	tests := map[string]struct {
 		sendgridSendResponse *rest.Response
 		sendgridSendErr      error
@@ -156,25 +155,23 @@ func testSend(t *testing.T) {
 	}{
 		"the token is used": {
 			apiKey:                 "some key",
-			sendgridSendResponse:   simpleRespons("", 202),
+			sendgridSendResponse:   simpleResponse("", 202),
 			expectedSendgridAPIKey: "some key",
 		},
 		"when #Send returns an error, bubble it up": {
-			sendgridSendErr: fmt.Errorf("some sendgrid err"),
+			sendgridSendErr: errors.New("some sendgrid err"),
 			expectedErr:     "some sendgrid err",
 		},
 		"when #Send returns an empty response, an error is returned": {
 			expectedErr: "empty API response",
 		},
 		"when #Send returns an invalid status code, an error holding the API response is returned": {
-			sendgridSendResponse: simpleRespons("some API response", 500),
+			sendgridSendResponse: simpleResponse("some API response", 500),
 			expectedErr:          "some API response",
 		},
 	}
 
 	for name, tc := range tests {
-		tc := tc
-
 		it.Run(t, name, func(t *testing.T) {
 			m := mail.NewSender(tc.apiKey)
 
@@ -196,11 +193,11 @@ func testSend(t *testing.T) {
 	}
 }
 
-func simpleRespons(body string, code int) *rest.Response {
+func simpleResponse(body string, code int) *rest.Response {
 	return &rest.Response{Body: body, StatusCode: code}
 }
 
-func testSender(t *testing.T) {
+func senderTest(t *testing.T) {
 	tests := map[string]struct {
 		senderName  string
 		senderEmail string
@@ -218,7 +215,6 @@ func testSender(t *testing.T) {
 	}
 
 	for name, tc := range tests {
-		tc := tc
 		it.Run(t, name, func(t *testing.T) {
 			m := &mail.Sender{}
 			err := m.SetSender(tc.senderName, tc.senderEmail)
@@ -227,7 +223,7 @@ func testSender(t *testing.T) {
 	}
 }
 
-func testRecipient(t *testing.T) {
+func recipientTest(t *testing.T) {
 	tests := map[string]struct {
 		recipientArgs [][]string
 		expectedErr   string
@@ -256,8 +252,6 @@ func testRecipient(t *testing.T) {
 	}
 
 	for name, tc := range tests {
-		tc := tc
-
 		it.Run(t, name, func(t *testing.T) {
 			for _, args := range tc.recipientArgs {
 				it.Run(t, "", func(t *testing.T) {

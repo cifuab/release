@@ -20,8 +20,9 @@ package anagofakes
 import (
 	"sync"
 
-	"github.com/blang/semver"
+	semver "github.com/blang/semver/v4"
 	"k8s.io/release/pkg/announce"
+	"k8s.io/release/pkg/announce/github"
 	"k8s.io/release/pkg/build"
 	"k8s.io/release/pkg/gcp/gcb"
 	"k8s.io/release/pkg/release"
@@ -29,17 +30,6 @@ import (
 )
 
 type FakeReleaseImpl struct {
-	ArchiveReleaseStub        func(*release.ArchiverOptions) error
-	archiveReleaseMutex       sync.RWMutex
-	archiveReleaseArgsForCall []struct {
-		arg1 *release.ArchiverOptions
-	}
-	archiveReleaseReturns struct {
-		result1 error
-	}
-	archiveReleaseReturnsOnCall map[int]struct {
-		result1 error
-	}
 	BranchNeedsCreationStub        func(string, string, semver.Version) (bool, error)
 	branchNeedsCreationMutex       sync.RWMutex
 	branchNeedsCreationArgsForCall []struct {
@@ -280,10 +270,10 @@ type FakeReleaseImpl struct {
 	toFileReturnsOnCall map[int]struct {
 		result1 error
 	}
-	UpdateGitHubPageStub        func(*announce.GitHubPageOptions) error
+	UpdateGitHubPageStub        func(*github.Options) error
 	updateGitHubPageMutex       sync.RWMutex
 	updateGitHubPageArgsForCall []struct {
-		arg1 *announce.GitHubPageOptions
+		arg1 *github.Options
 	}
 	updateGitHubPageReturns struct {
 		result1 error
@@ -306,67 +296,6 @@ type FakeReleaseImpl struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
-}
-
-func (fake *FakeReleaseImpl) ArchiveRelease(arg1 *release.ArchiverOptions) error {
-	fake.archiveReleaseMutex.Lock()
-	ret, specificReturn := fake.archiveReleaseReturnsOnCall[len(fake.archiveReleaseArgsForCall)]
-	fake.archiveReleaseArgsForCall = append(fake.archiveReleaseArgsForCall, struct {
-		arg1 *release.ArchiverOptions
-	}{arg1})
-	stub := fake.ArchiveReleaseStub
-	fakeReturns := fake.archiveReleaseReturns
-	fake.recordInvocation("ArchiveRelease", []interface{}{arg1})
-	fake.archiveReleaseMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeReleaseImpl) ArchiveReleaseCallCount() int {
-	fake.archiveReleaseMutex.RLock()
-	defer fake.archiveReleaseMutex.RUnlock()
-	return len(fake.archiveReleaseArgsForCall)
-}
-
-func (fake *FakeReleaseImpl) ArchiveReleaseCalls(stub func(*release.ArchiverOptions) error) {
-	fake.archiveReleaseMutex.Lock()
-	defer fake.archiveReleaseMutex.Unlock()
-	fake.ArchiveReleaseStub = stub
-}
-
-func (fake *FakeReleaseImpl) ArchiveReleaseArgsForCall(i int) *release.ArchiverOptions {
-	fake.archiveReleaseMutex.RLock()
-	defer fake.archiveReleaseMutex.RUnlock()
-	argsForCall := fake.archiveReleaseArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeReleaseImpl) ArchiveReleaseReturns(result1 error) {
-	fake.archiveReleaseMutex.Lock()
-	defer fake.archiveReleaseMutex.Unlock()
-	fake.ArchiveReleaseStub = nil
-	fake.archiveReleaseReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeReleaseImpl) ArchiveReleaseReturnsOnCall(i int, result1 error) {
-	fake.archiveReleaseMutex.Lock()
-	defer fake.archiveReleaseMutex.Unlock()
-	fake.ArchiveReleaseStub = nil
-	if fake.archiveReleaseReturnsOnCall == nil {
-		fake.archiveReleaseReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.archiveReleaseReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
 }
 
 func (fake *FakeReleaseImpl) BranchNeedsCreation(arg1 string, arg2 string, arg3 semver.Version) (bool, error) {
@@ -1571,11 +1500,11 @@ func (fake *FakeReleaseImpl) ToFileReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeReleaseImpl) UpdateGitHubPage(arg1 *announce.GitHubPageOptions) error {
+func (fake *FakeReleaseImpl) UpdateGitHubPage(arg1 *github.Options) error {
 	fake.updateGitHubPageMutex.Lock()
 	ret, specificReturn := fake.updateGitHubPageReturnsOnCall[len(fake.updateGitHubPageArgsForCall)]
 	fake.updateGitHubPageArgsForCall = append(fake.updateGitHubPageArgsForCall, struct {
-		arg1 *announce.GitHubPageOptions
+		arg1 *github.Options
 	}{arg1})
 	stub := fake.UpdateGitHubPageStub
 	fakeReturns := fake.updateGitHubPageReturns
@@ -1596,13 +1525,13 @@ func (fake *FakeReleaseImpl) UpdateGitHubPageCallCount() int {
 	return len(fake.updateGitHubPageArgsForCall)
 }
 
-func (fake *FakeReleaseImpl) UpdateGitHubPageCalls(stub func(*announce.GitHubPageOptions) error) {
+func (fake *FakeReleaseImpl) UpdateGitHubPageCalls(stub func(*github.Options) error) {
 	fake.updateGitHubPageMutex.Lock()
 	defer fake.updateGitHubPageMutex.Unlock()
 	fake.UpdateGitHubPageStub = stub
 }
 
-func (fake *FakeReleaseImpl) UpdateGitHubPageArgsForCall(i int) *announce.GitHubPageOptions {
+func (fake *FakeReleaseImpl) UpdateGitHubPageArgsForCall(i int) *github.Options {
 	fake.updateGitHubPageMutex.RLock()
 	defer fake.updateGitHubPageMutex.RUnlock()
 	argsForCall := fake.updateGitHubPageArgsForCall[i]
@@ -1698,8 +1627,6 @@ func (fake *FakeReleaseImpl) ValidateImagesReturnsOnCall(i int, result1 error) {
 func (fake *FakeReleaseImpl) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.archiveReleaseMutex.RLock()
-	defer fake.archiveReleaseMutex.RUnlock()
 	fake.branchNeedsCreationMutex.RLock()
 	defer fake.branchNeedsCreationMutex.RUnlock()
 	fake.checkPrerequisitesMutex.RLock()

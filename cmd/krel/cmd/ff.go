@@ -23,14 +23,15 @@ import (
 
 	"github.com/spf13/cobra"
 
+	kgit "sigs.k8s.io/release-sdk/git"
+
 	"k8s.io/release/pkg/fastforward"
 	"k8s.io/release/pkg/release"
-	kgit "sigs.k8s.io/release-sdk/git"
 )
 
 var ffOpts = &fastforward.Options{}
 
-// ffCmd represents the base command when called without any subcommands
+// ffCmd represents the base command when called without any subcommands.
 var ffCmd = &cobra.Command{
 	Use:     "fast-forward --branch <release-branch> [--ref <main-ref>] [--nomock] [--cleanup]",
 	Short:   "Fast forward a Kubernetes release branch",
@@ -49,6 +50,11 @@ After that preflight-check, the release branch will be checked out and krel
 verifies that the latest merge base tag is the same for the main and the
 release branch. This means that only the latest release branch can be fast
 forwarded.
+
+Additionally, krel lists all k/sig-release issues and searches for the
+one with the title "Cut vx.y.0 release". If that exists and is open, then
+krel will skip the fast-forward, because it may happen that a fast-forward
+produces merge conflicts in git when comparing with the already staged sources.
 
 krel merges the provided ref into the release branch and asks for a final
 confirmation if the push should really happen. The push will only be executed
@@ -70,10 +76,12 @@ Google Cloud Build job.
 }
 
 func init() {
-	ffCmd.PersistentFlags().StringVar(&ffOpts.RepoPath, "repo", filepath.Join(os.TempDir(), "k8s"), "the local path to the repository to be used")
+	ffCmd.PersistentFlags().StringVar(&ffOpts.RepoPath, "repo-path", filepath.Join(os.TempDir(), "k8s"), "the local path to the repository to be used")
+	ffCmd.PersistentFlags().StringVar(&ffOpts.GitHubOrg, "github-org", release.GetK8sOrg(), "the GitHub Organization to be used do the initial clone")
+	ffCmd.PersistentFlags().StringVar(&ffOpts.GitHubRepo, "github-repo", release.GetK8sRepo(), "the GitHub Repository to be used do the initial clone")
 	ffCmd.PersistentFlags().StringVar(&ffOpts.Branch, "branch", "", "branch")
 	ffCmd.PersistentFlags().StringVar(&ffOpts.MainRef, "ref", kgit.Remotify(kgit.DefaultBranch), "ref on the main branch")
-	ffCmd.PersistentFlags().StringVar(&ffOpts.GCPProjectID, "project-id", release.DefaultRelengStagingTestProject, "Google Cloud Porject to use to submit the job")
+	ffCmd.PersistentFlags().StringVar(&ffOpts.GCPProjectID, "project-id", release.DefaultRelengStagingTestProject, "Google Cloud Project to use to submit the job")
 	ffCmd.PersistentFlags().BoolVar(&ffOpts.Cleanup, "cleanup", false, "cleanup the repository after the run")
 	ffCmd.PersistentFlags().BoolVar(&ffOpts.NonInteractive, "non-interactive", false, "do not require any user interaction")
 	ffCmd.PersistentFlags().BoolVar(&ffOpts.Submit, "submit", false, "run inside of Google Cloud Build by submitting a new job")

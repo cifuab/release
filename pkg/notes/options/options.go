@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -29,7 +30,7 @@ import (
 )
 
 // Options is the global options structure which can be used to build release
-// notes generator options
+// notes generator options.
 type Options struct {
 	// GithubBaseURL specifies the Github base URL.
 	GithubBaseURL string
@@ -68,6 +69,11 @@ type Options struct {
 	// EndRev can be used to set the release notes end revision to any
 	// valid git revision. Should not be used together with EndSHA.
 	EndRev string
+
+	// SkipFirstCommit skips the first commit if StartRev is being used. This
+	// is useful if StartRev is a tag which should not be included in the
+	// release notes.
+	SkipFirstCommit bool
 
 	// Format specifies the format of the release notes. Can be either
 	// `json` or `markdown`.
@@ -149,7 +155,7 @@ const (
 	GoTemplateInline       = GoTemplatePrefix + GoTemplatePrefixInline
 )
 
-// New creates a new Options instance with the default values
+// New creates a new Options instance with the default values.
 func New() *Options {
 	return &Options{
 		DiscoverMode:       RevisionDiscoveryModeNONE,
@@ -194,6 +200,11 @@ func (o *Options) ValidateAndFinish() (err error) {
 		)
 	}
 
+	// Set RepoPath to <tempdir>/<gh-org>-<gh-repo> if empty
+	if o.RepoPath == "" {
+		o.RepoPath = filepath.Join(os.TempDir(), fmt.Sprintf("%s-%s", o.GithubOrg, o.GithubRepo))
+	}
+
 	// Check if we want to automatically discover the revisions
 	if o.DiscoverMode != RevisionDiscoveryModeNONE {
 		if err := o.resolveDiscoverMode(); err != nil {
@@ -211,6 +222,10 @@ func (o *Options) ValidateAndFinish() (err error) {
 		return errors.New("the ending commit hash must be set via --end-sha, $END_SHA, --end-rev or $END_REV")
 	}
 
+	if o.SkipFirstCommit && o.StartRev == "" {
+		return errors.New("--skip-first-commit/-s can be only used together with --start-rev")
+	}
+
 	// Check if we have to parse a revision
 	if (o.StartRev != "" && o.StartSHA == "") || (o.EndRev != "" && o.EndSHA == "") {
 		repo, err := o.repo()
@@ -222,6 +237,15 @@ func (o *Options) ValidateAndFinish() (err error) {
 			if err != nil {
 				return fmt.Errorf("resolving %s: %w", o.StartRev, err)
 			}
+
+			if o.SkipFirstCommit {
+				logrus.Infof("Skipping first commit: %s", sha)
+				sha, err = repo.NextCommit(sha, git.DefaultRemote+"/"+o.Branch)
+				if err != nil {
+					return fmt.Errorf("getting the next repo commit: %w", err)
+				}
+			}
+
 			logrus.Infof("Using found start SHA: %s", sha)
 			o.StartSHA = sha
 		}
@@ -254,7 +278,7 @@ func (o *Options) ValidateAndFinish() (err error) {
 	return nil
 }
 
-// checkFormatOptions verifies that template related options are sane
+// checkFormatOptions verifies that template related options are sane.
 func (o *Options) checkFormatOptions() error {
 	// Validate the output format and template
 	logrus.Infof("Using output format: %s", o.Format)

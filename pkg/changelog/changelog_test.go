@@ -20,13 +20,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
+
+	"sigs.k8s.io/release-sdk/github"
 
 	"k8s.io/release/pkg/changelog"
 	"k8s.io/release/pkg/changelog/changelogfakes"
 	"k8s.io/release/pkg/notes"
-	"sigs.k8s.io/release-sdk/github"
 )
 
 func TestRun(t *testing.T) {
@@ -300,9 +301,9 @@ func TestRun(t *testing.T) {
 
 		err := sut.Run()
 		if tc.shouldErr {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }

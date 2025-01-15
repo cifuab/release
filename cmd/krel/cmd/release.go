@@ -23,12 +23,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"sigs.k8s.io/release-sdk/github"
+
 	"k8s.io/release/pkg/anago"
 	"k8s.io/release/pkg/release"
-	"sigs.k8s.io/release-sdk/github"
 )
 
-// releaseCmd represents the subcommand for `krel release`
+// releaseCmd represents the subcommand for `krel release`.
 var releaseCmd = &cobra.Command{
 	Use:   "release",
 	Short: "Release a staged Kubernetes version",
@@ -56,10 +57,12 @@ Build (GCB) job, which does:
 5. Push Git Objects: Pushes the new tags and branches to the repository remote
    on GitHub.
 
-6. Announce: Create the release announcement mail and update the GitHub release
+6. Release the deb/rpm packages (only when running nomock official).
+
+7. Announce: Create the release announcement mail and update the GitHub release
    page to contain the artifacts and their checksums.
 
-7. Archive: Copies the release process logs to a bucket and sets private
+8. Archive: Copies the release process logs to a bucket and sets private
    permissions on it.
 `, github.TokenEnvKey),
 	SilenceUsage:  true,

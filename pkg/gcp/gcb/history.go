@@ -26,9 +26,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/api/cloudbuild/v1"
 
+	"sigs.k8s.io/release-sdk/git"
+
 	"k8s.io/release/pkg/gcp/build"
 	"k8s.io/release/pkg/release"
-	"sigs.k8s.io/release-sdk/git"
 )
 
 // History is the main structure for retrieving the GCB history output.
@@ -101,7 +102,7 @@ var status = map[string]string{
 }
 
 // RunHistory is the function invoked by 'krel history', responsible for
-// getting the jobs and builind the list of commands to be added in the GitHub issue
+// getting the jobs and builind the list of commands to be added in the GitHub issue.
 func (h *History) Run() error {
 	from, to, err := h.parseDateRange()
 	if err != nil {
@@ -146,13 +147,18 @@ func (h *History) Run() error {
 			command = fmt.Sprintf("%s %s`", command, job.Substitutions["_NOMOCK"])
 			mock = ""
 		} else {
-			command = fmt.Sprintf("%s`", command)
+			command += "`"
 			mock = "mock "
 		}
 
 		start := job.Timing["BUILD"].StartTime
 		end := job.Timing["BUILD"].EndTime
 		logs := job.LogUrl
+
+		if start == "" || end == "" {
+			logrus.Infof("Skipping unfinished job from %s with ID: %s", job.CreateTime, job.Id)
+			continue
+		}
 
 		// Calculate the duration of the job
 		const layout = "2006-01-02T15:04:05.99Z"

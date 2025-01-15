@@ -17,8 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -30,7 +28,7 @@ const (
 	nl = "\n"
 )
 
-// rootCmd represents the base command when called without any subcommands
+// rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:   "krel",
 	Short: "The Kubernetes Release toolbox",
@@ -70,11 +68,12 @@ func init() {
 		"run the command to target the production environment",
 	)
 
-	rootCmd.PersistentFlags().StringVar(
+	rootCmd.PersistentFlags().StringVarP(
 		&rootOpts.logLevel,
 		"log-level",
+		"l",
 		"info",
-		fmt.Sprintf("the logging verbosity, either %s", log.LevelNames()),
+		"the logging verbosity, either "+log.LevelNames(),
 	)
 
 	rootCmd.AddCommand(version.WithFont("slant"))

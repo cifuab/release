@@ -20,12 +20,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
+
+	"sigs.k8s.io/release-sdk/git"
 
 	"k8s.io/release/pkg/release"
 	"k8s.io/release/pkg/release/releasefakes"
-	"sigs.k8s.io/release-sdk/git"
 )
 
 func TestNeedsCreation(t *testing.T) {
@@ -99,10 +100,10 @@ func TestNeedsCreation(t *testing.T) {
 
 		res, err := sut.NeedsCreation(tc.branch, tc.releaseType, tc.buildVersion)
 		if tc.shouldErr {
-			require.NotNil(t, err)
+			require.Error(t, err)
 			require.False(t, res)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, tc.shouldReturn, res)
 		}
 	}

@@ -18,6 +18,7 @@ package notes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,10 +27,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v60/github"
 	"github.com/sirupsen/logrus"
+
 	"sigs.k8s.io/release-sdk/git"
 	"sigs.k8s.io/release-sdk/github/githubfakes"
 )
@@ -41,9 +42,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestListCommits(t *testing.T) {
+	t.Parallel()
 	const always = -1
 
-	zeroTime := &time.Time{}
+	zeroTime := &github.Timestamp{}
 
 	type listCommitsReturnsList map[int]struct {
 		rc []*github.RepositoryCommit
@@ -107,8 +109,8 @@ func TestListCommits(t *testing.T) {
 			},
 			listCommitsArgValidator: func(t *testing.T, callCount int, ctx context.Context, org, repo string, clo *github.CommitsListOptions) {
 				checkOrgRepo(t, org, repo)
-				if page, min, max := clo.ListOptions.Page, 1, 100; page < min || page > max {
-					t.Errorf("Expected page number to be between %d and %d, got: %d", min, max, page)
+				if page, minimum, maximum := clo.ListOptions.Page, 1, 100; page < minimum || page > maximum {
+					t.Errorf("Expected page number to be between %d and %d, got: %d", minimum, maximum, page)
 				}
 				if a, e := clo.SHA, "the-branch"; a != e {
 					t.Errorf("Expected SHA to be the branch '%s', got: '%s'", e, a)
@@ -132,7 +134,7 @@ func TestListCommits(t *testing.T) {
 		},
 		"http error on GetCommit(...)": {
 			getCommitReturns: getCommitReturnsList{always: {
-				e: fmt.Errorf("some err on GetCommit"),
+				e: errors.New("some err on GetCommit"),
 			}},
 			expectedGetCommitCallCount: 1,
 			expectedErrMsg:             "some err on GetCommit",
@@ -143,7 +145,7 @@ func TestListCommits(t *testing.T) {
 					c: &github.Commit{Committer: &github.CommitAuthor{Date: zeroTime}},
 				},
 				1: {
-					e: fmt.Errorf("some err on 2nd GetCommit"),
+					e: errors.New("some err on 2nd GetCommit"),
 				},
 			},
 			expectedGetCommitCallCount: 2,
@@ -154,7 +156,7 @@ func TestListCommits(t *testing.T) {
 				c: &github.Commit{Committer: &github.CommitAuthor{Date: zeroTime}},
 			}},
 			listCommitsReturns: listCommitsReturnsList{always: {
-				e: fmt.Errorf("some err on ListCommits"),
+				e: errors.New("some err on ListCommits"),
 			}},
 			expectedGetCommitCallCount:      2,
 			expectedListCommitsMaxCallCount: 1,
@@ -170,7 +172,7 @@ func TestListCommits(t *testing.T) {
 					r:  response(200, 100),
 				},
 				2: {
-					e: fmt.Errorf("some err on a random ListCommits call"),
+					e: errors.New("some err on a random ListCommits call"),
 				},
 			},
 			expectedGetCommitCallCount:      2,
@@ -210,8 +212,8 @@ func TestListCommits(t *testing.T) {
 
 			checkCallCount(t, "GetCommits(...)", tc.expectedGetCommitCallCount, client.GetCommitCallCount())
 
-			if min, max, a := tc.expectedListCommitsMinCallCount, tc.expectedListCommitsMaxCallCount, client.ListCommitsCallCount(); a < min || a > max {
-				t.Errorf("Expected ListCommits(...) to be called between %d and %d times, got called %d times", min, max, a)
+			if minCallCount, maxCallCount, a := tc.expectedListCommitsMinCallCount, tc.expectedListCommitsMaxCallCount, client.ListCommitsCallCount(); a < minCallCount || a > maxCallCount {
+				t.Errorf("Expected ListCommits(...) to be called between %d and %d times, got called %d times", minCallCount, maxCallCount, a)
 			}
 
 			if a, e := len(commits), tc.expectedCommitCount; a != e {
@@ -219,13 +221,13 @@ func TestListCommits(t *testing.T) {
 			}
 
 			if val := tc.getCommitArgValidator; val != nil {
-				for i := 0; i < client.GetCommitCallCount(); i++ {
+				for i := range client.GetCommitCallCount() {
 					ctx, org, repo, rev := client.GetCommitArgsForCall(i)
 					val(t, i, ctx, org, repo, rev)
 				}
 			}
 			if val := tc.listCommitsArgValidator; val != nil {
-				for i := 0; i < client.ListCommitsCallCount(); i++ {
+				for i := range client.ListCommitsCallCount() {
 					ctx, org, repo, clo := client.ListCommitsArgsForCall(i)
 					val(t, i, ctx, org, repo, clo)
 				}
@@ -235,8 +237,9 @@ func TestListCommits(t *testing.T) {
 }
 
 func TestGatherNotes(t *testing.T) {
+	t.Parallel()
 	type getPullRequestStub func(context.Context, string, string, int) (*github.PullRequest, *github.Response, error)
-	type listPullRequestsWithCommitStub func(context.Context, string, string, string, *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error)
+	type listPullRequestsWithCommitStub func(context.Context, string, string, string, *github.ListOptions) ([]*github.PullRequest, *github.Response, error)
 
 	tests := map[string]struct {
 		// listPullRequestsWithCommitStubber is a function that needs to return
@@ -277,7 +280,7 @@ func TestGatherNotes(t *testing.T) {
 				repoCommit("some-random-sha", "some-random-commit-msg"),
 			},
 			listPullRequestsWithCommitStubber: func(t *testing.T) listPullRequestsWithCommitStub {
-				return func(_ context.Context, org, repo, sha string, _ *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error) {
+				return func(_ context.Context, org, repo, sha string, _ *github.ListOptions) ([]*github.PullRequest, *github.Response, error) {
 					checkOrgRepo(t, org, repo)
 					if e, a := "some-random-sha", sha; e != a {
 						t.Errorf("Expected ListPullRequestsWithCommit(...) to be called for SHA '%s', have been called for '%s'", e, a)
@@ -313,8 +316,8 @@ func TestGatherNotes(t *testing.T) {
 		"when GetPullRequest(...) returns an error": {
 			commitList: []*github.RepositoryCommit{repoCommit("some-sha", "some #123 thing")},
 			listPullRequestsWithCommitStubber: func(t *testing.T) listPullRequestsWithCommitStub {
-				return func(_ context.Context, _, _, _ string, _ *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error) {
-					return nil, nil, fmt.Errorf("some-error-from-get-pull-request")
+				return func(_ context.Context, _, _, _ string, _ *github.ListOptions) ([]*github.PullRequest, *github.Response, error) {
+					return nil, nil, errors.New("some-error-from-get-pull-request")
 				}
 			},
 			expectedListPullRequestsWithCommitCallCount: 1,
@@ -323,8 +326,8 @@ func TestGatherNotes(t *testing.T) {
 		"when ListPullRequestsWithCommit(...) returns an error": {
 			commitList: []*github.RepositoryCommit{repoCommit("some-sha", "some-msg")},
 			listPullRequestsWithCommitStubber: func(t *testing.T) listPullRequestsWithCommitStub {
-				return func(_ context.Context, _, _, _ string, _ *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error) {
-					return nil, nil, fmt.Errorf("some-error-from-list-pull-requests-with-commit")
+				return func(_ context.Context, _, _, _ string, _ *github.ListOptions) ([]*github.PullRequest, *github.Response, error) {
+					return nil, nil, errors.New("some-error-from-list-pull-requests-with-commit")
 				}
 			},
 			expectedListPullRequestsWithCommitCallCount: 1,
@@ -335,30 +338,30 @@ func TestGatherNotes(t *testing.T) {
 			listPullRequestsWithCommitStubber: func(t *testing.T) listPullRequestsWithCommitStub {
 				prsPerCall := [][]*github.PullRequest{
 					// explicitly excluded
-					{pullRequest(1, "something ```release-note N/a``` something")},
-					{pullRequest(2, "something ```release-note Na``` something")},
-					{pullRequest(3, "something ```release-note None ``` something")},
-					{pullRequest(4, "something ```release-note 'None' ``` something")},
-					{pullRequest(5, "something /release-note-none something")},
-					// explicitly included
-					{pullRequest(6, "something release-note something")},
-					{pullRequest(7, "something Does this PR introduce a user-facing change something")},
+					{pullRequest(1, "something ```release-note\nN/a\n``` something", "closed")},
+					{pullRequest(2, "something ```release-note\nNa\n``` something", "closed")},
+					{pullRequest(3, "something ```release-note\nNone \n``` something", "closed")},
+					{pullRequest(4, "something ```release-note\n'None' \n``` something", "closed")},
+					{pullRequest(5, "something /release-note-none something", "closed")},
 					// multiple PRs
 					{ // first does no match, second one matches, rest is ignored
-						pullRequest(8, ""),
-						pullRequest(9, " Does this PR introduce a user-facing change"),
-						pullRequest(10, "does-not-matter--is-not-considered"),
+						pullRequest(6, "", "closed"),
+						pullRequest(7, " something ```release-note\nTest\n``` something", "closed"),
+						pullRequest(8, "does-not-matter--is-not-considered", "closed"),
 					},
 					// some other strange things
-					{pullRequest(11, "Does this PR introduce a user-facing chang")}, // matches despite the missing 'e'
-					{pullRequest(12, "release-note /release-note-none")},            // excluded, the exclusion filters take precedence
-					{pullRequest(13, "```release-note NAAAAAAAAAA```")},             // included, does not match the N/A filter, but the 'release-note' check
-					{pullRequest(14, "```release-note none something ```")},         // included, does not match the N/A filter, but the 'release-note' check
-					{pullRequest(15, "release-noteNOOOO")},                          // included
+					{pullRequest(9, "release-note /release-note-none", "closed")},       // excluded, the exclusion filters take precedence
+					{pullRequest(10, "```release-note\nNAAAAAAAAAA\n```", "closed")},    // included, does not match the N/A filter, but the 'release-note' check
+					{pullRequest(11, "```release-note\nnone something\n```", "closed")}, // included, does not match the N/A filter, but the 'release-note' check
+					// empty release note block should skipped because noteTextFromString returns an error
+					{pullRequest(12, "```release-note\n\n```", "closed")},
+					{pullRequest(13, "```release-note```", "closed")},
+					{pullRequest(14, "```release-note ```", "closed")},
+					{pullRequest(15, "```release-note\n\n```", "open")},
 				}
 				var callCount int64 = -1
 
-				return func(_ context.Context, _, _, _ string, _ *github.PullRequestListOptions) ([]*github.PullRequest, *github.Response, error) {
+				return func(_ context.Context, _, _, _ string, _ *github.ListOptions) ([]*github.PullRequest, *github.Response, error) {
 					callCount := int(atomic.AddInt64(&callCount, 1))
 					if a, e := callCount+1, len(prsPerCall); a > e {
 						return nil, &github.Response{}, nil
@@ -370,7 +373,7 @@ func TestGatherNotes(t *testing.T) {
 			resultsChecker: func(t *testing.T, results []*Result) {
 				// there is not much we can check on the Result, as all the fields are
 				// unexported
-				expectedResultSize := 13
+				expectedResultSize := 9
 				if e, a := expectedResultSize, len(results); e != a {
 					t.Errorf("Expected the result to be of size %d, got %d", e, a)
 				}
@@ -411,10 +414,11 @@ func TestGatherNotes(t *testing.T) {
 	}
 }
 
-func pullRequest(id int, msg string) *github.PullRequest {
+func pullRequest(id int, msg, state string) *github.PullRequest {
 	return &github.PullRequest{
 		Body:   strPtr(msg),
 		Number: intPtr(id),
+		State:  strPtr(state),
 	}
 }
 
