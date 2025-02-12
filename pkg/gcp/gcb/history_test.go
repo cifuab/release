@@ -30,6 +30,7 @@ import (
 
 func TestHistoryRun(t *testing.T) {
 	err := errors.New("error")
+
 	for _, tc := range []struct {
 		options   *gcb.HistoryOptions
 		prepare   func(*gcbfakes.FakeHistoryImpl)
@@ -104,7 +105,10 @@ func TestHistoryRun(t *testing.T) {
 					{
 						Tags: []string{"RELEASE"},
 						Timing: map[string]cloudbuild.TimeSpan{
-							"BUILD": {StartTime: "wrong"},
+							"BUILD": {
+								StartTime: "wrong",
+								EndTime:   "2020-10-10",
+							},
 						},
 					},
 				}, nil)
@@ -121,7 +125,10 @@ func TestHistoryRun(t *testing.T) {
 					{
 						Tags: []string{"STAGE"},
 						Timing: map[string]cloudbuild.TimeSpan{
-							"BUILD": {EndTime: "wrong"},
+							"BUILD": {
+								StartTime: "2020-10-10",
+								EndTime:   "wrong",
+							},
 						},
 						Substitutions: map[string]string{"_NOMOCK": "true"},
 					},
@@ -138,9 +145,9 @@ func TestHistoryRun(t *testing.T) {
 
 		err := sut.Run()
 		if tc.shouldErr {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }

@@ -1,16 +1,8 @@
 ---
 run:
   concurrency: 6
-  deadline: 5m
+  timeout: 15m
 issues:
-  exclude-rules:
-    # counterfeiter fakes are usually named 'fake_<something>.go'
-    - path: fake_.*\.go
-      linters:
-        - gocritic
-        - golint
-        - dupl
-
   # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
   max-issues-per-linter: 0
 
@@ -19,22 +11,34 @@ issues:
 linters:
   disable-all: true
   enable:
+    - asasalint
     - asciicheck
     - bidichk
     - bodyclose
+    - canonicalheader
+    - containedctx
     - contextcheck
-    - deadcode
+    - copyloopvar
     - decorder
-    - depguard
     - dogsled
     - dupl
     - durationcheck
     - errcheck
     - errchkjson
     - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forcetypeassert
+    - gci
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecksumtype
     - goconst
     - gocritic
     - gocyclo
+    - godot
     - godox
     - gofmt
     - gofumpt
@@ -45,194 +49,97 @@ linters:
     - goprintffuncname
     - gosec
     - gosimple
+    - gosmopolitan
     - govet
     - grouper
+    - iface
     - importas
     - ineffassign
+    - intrange
+    - loggercheck
     - makezero
+    - mirror
     - misspell
+    - musttag
     - nakedret
+    - nilerr
+    - nilnesserr
+    - nlreturn
+    - noctx
     - nolintlint
+    - nosprintfhostport
+    - perfsprint
     - prealloc
     - predeclared
     - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
     - revive
     - rowserrcheck
+    - sloglint
+    - spancheck
     - sqlclosecheck
     - staticcheck
-    - structcheck
     - stylecheck
+    - tagalign
     - tenv
+    - testableexamples
+    - testifylint
+    - tparallel
     - typecheck
     - unconvert
     - unparam
     - unused
-    - varcheck
+    - usestdlibvars
+    - usetesting
+    - wastedassign
     - whitespace
-    # - containedctx
+    - wsl
+    - zerologlint
     # - cyclop
-    # - errorlint
-    # - exhaustive
-    # - exhaustivestruct
-    # - exportloopref
+    # - depguard
+    # - dupword
+    # - err113
+    # - exhaustruct
     # - forbidigo
-    # - forcetypeassert
     # - funlen
-    # - gci
     # - gochecknoglobals
     # - gochecknoinits
     # - gocognit
-    # - godot
-    # - goerr113
-    # - gomnd
-    # - ifshort
+    # - inamedparam
+    # - interfacebloat
     # - ireturn
     # - lll
     # - maintidx
+    # - mnd
     # - nestif
-    # - nilerr
     # - nilnil
-    # - nlreturn
-    # - noctx
+    # - nonamedreturns
     # - paralleltest
     # - tagliatelle
     # - testpackage
     # - thelper
-    # - tparallel
     # - varnamelen
-    # - wastedassign
     # - wrapcheck
-    # - wsl
 linters-settings:
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(k8s.io)
+      - prefix(sigs.k8s.io)
+      - localmodule
+  revive:
+    rules:
+      - name: unused-parameter
+        disabled: true
+  gocyclo:
+    min-complexity: 40
   godox:
     keywords:
       - BUG
       - FIXME
       - HACK
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
   gocritic:
-    enabled-checks:
-      # Diagnostic
-      - appendAssign
-      - argOrder
-      - badCall
-      - badCond
-      - badLock
-      - badRegexp
-      - badSorting
-      - builtinShadowDecl
-      - caseOrder
-      - codegenComment
-      - commentedOutCode
-      - deferInLoop
-      - deprecatedComment
-      - dupArg
-      - dupBranchBody
-      - dupCase
-      - dupSubExpr
-      - dynamicFmtString
-      - emptyDecl
-      - evalOrder
-      - exitAfterDefer
-      - externalErrorReassign
-      - filepathJoin
-      - flagDeref
-      - flagName
-      - mapKey
-      - nilValReturn
-      - offBy1
-      - regexpPattern
-      - returnAfterHttpError
-      - sloppyReassign
-      - sloppyTypeAssert
-      - sortSlice
-      - sprintfQuotedString
-      - sqlQuery
-      - syncMapLoadAndDelete
-      - truncateCmp
-      - unnecessaryDefer
-      - weakCond
-
-      # Performance
-      - appendCombine
-      - equalFold
-      - hugeParam
-      - indexAlloc
-      - preferDecodeRune
-      - preferFprint
-      - preferStringWriter
-      - preferWriteByte
-      - rangeExprCopy
-      - rangeValCopy
-      - sliceClear
-      - stringXbytes
-
-      # Style
-      - assignOp
-      - boolExprSimplify
-      - captLocal
-      - commentFormatting
-      - commentedOutImport
-      - defaultCaseOrder
-      - deferUnlambda
-      - docStub
-      - dupImport
-      - elseif
-      - emptyFallthrough
-      - emptyStringTest
-      - exposedSyncMutex
-      - hexLiteral
-      - httpNoBody
-      - ifElseChain
-      - ioutilDeprecated
-      - methodExprCall
-      - newDeref
-      - octalLiteral
-      - preferFilepathJoin
-      - redundantSprint
-      - regexpMust
-      - regexpSimplify
-      - ruleguard
-      - singleCaseSwitch
-      - sloppyLen
-      - stringConcatSimplify
-      - switchTrue
-      - timeExprSimplify
-      - tooManyResultsChecker
-      - typeAssertChain
-      - typeDefFirst
-      - typeSwitchVar
-      - underef
-      - unlabelStmt
-      - unlambda
-      - unslice
-      - valSwap
-      - whyNoLint
-      - wrapperFunc
-      - yodaStyleExpr
-
-      # Opinionated
-      - builtinShadow
-      - importShadow
-      - initClause
-      - nestingReduce
-      - paramTypeCombine
-      - ptrToRefParam
-      - typeUnparen
-      - unnamedResult
-      - unnecessaryBlock
-  nolintlint:
-    # Enable to ensure that nolint directives are all used. Default is true.
-    allow-unused: false
-    # Disable to ensure that nolint directives don't have a leading space. Default is true.
-    # TODO(lint): Enforce machine-readable `nolint` directives
-    allow-leading-space: true
-    # Exclude following linters from requiring an explanation.  Default is [].
-    allow-no-explanation: []
-    # Enable to require an explanation of nonzero length after each nolint directive. Default is false.
-    # TODO(lint): Enforce explanations for `nolint` directives
-    require-explanation: false
-    # Enable to require nolint directives to mention the specific linter being suppressed. Default is false.
-    require-specific: true
+    enable-all: true

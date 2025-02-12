@@ -23,9 +23,11 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
+
+	"k8s.io/release/pkg/consts"
 )
 
-// PEFileHeader captures the header information of the executable
+// PEFileHeader captures the header information of the executable.
 type PEFileHeader struct {
 	Machine              uint16
 	NumberOfSections     uint16
@@ -36,62 +38,65 @@ type PEFileHeader struct {
 	Characteristics      uint16
 }
 
-// PEHeader captures the header information of the executable
+// PEHeader captures the header information of the executable.
 type PEHeader struct {
 	Machine uint16
 	Magic   uint16
 }
 
-// PEOptionalHeader we only care about the magic number to determine the binary wordsize
+// PEOptionalHeader we only care about the magic number to determine the binary wordsize.
 type PEOptionalHeader struct {
 	Magic uint16
 }
 
-// PEBinary is a struct that abstracts a Windows Portable Executable
+// PEBinary is a struct that abstracts a Windows Portable Executable.
 type PEBinary struct {
 	Header  *PEHeader
 	Options *Options
 }
 
-// NewPEBinary Returns a binary implementation for a Windows executable
+// NewPEBinary Returns a binary implementation for a Windows executable.
 func NewPEBinary(filePath string, opts *Options) (bin *PEBinary, err error) {
 	header, err := GetPEHeader(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading header from binary: %w", err)
 	}
+
 	if header == nil {
 		logrus.Infof("file is not a PE executable")
+
 		return nil, nil
 	}
+
 	return &PEBinary{
 		Header:  header,
 		Options: opts,
 	}, nil
 }
 
-// Return the header information as a string
+// Return the header information as a string.
 func (peh *PEHeader) String() string {
 	return fmt.Sprintf("%s %dbit", peh.MachineType(), peh.WordLength())
 }
 
-// MachineType returns the moniker of the binary architecture
+// MachineType returns the moniker of the binary architecture.
 func (peh *PEHeader) MachineType() string {
 	//nolint:gocritic
 	switch peh.Machine {
 	// IMAGE_FILE_MACHINE_AMD64     = 0x8664
 	case 0x8664:
-		return AMD64
+		return consts.ArchitectureAMD64
 	// IMAGE_FILE_MACHINE_ARM       = 0x1c0
 	case 0x1c0:
-		return ARM
+		return consts.ArchitectureARM
 	// IMAGE_FILE_MACHINE_ARMNT     = 0x1c4
 	// IMAGE_FILE_MACHINE_ARM64     = 0xaa64
 	case 0xaa64:
-		return ARM64
+		return consts.ArchitectureARM64
 	// IMAGE_FILE_MACHINE_EBC       = 0xebc
 	// IMAGE_FILE_MACHINE_I386      = 0x14c
 	case 0x14c:
-		return I386
+		return consts.ArchitectureI386
 	// IMAGE_FILE_MACHINE_IA64      = 0x200
 	// IMAGE_FILE_MACHINE_M32R      = 0x9041
 	// IMAGE_FILE_MACHINE_MIPS16    = 0x266
@@ -107,14 +112,15 @@ func (peh *PEHeader) MachineType() string {
 	// IMAGE_FILE_MACHINE_THUMB     = 0x1c2
 	// IMAGE_FILE_MACHINE_WCEMIPSV2 = 0x169
 	case 0x1f0:
-		return PPC
+		return consts.ArchitecturePPC
 	}
 
 	logrus.Warn("Could not determine architecture type")
+
 	return ""
 }
 
-// WordLength Returns an integer indicating if it's a 64 or 32 bit binary
+// WordLength Returns an integer indicating if it's a 64 or 32 bit binary.
 func (peh *PEHeader) WordLength() int {
 	// We infer the wordlength from the machine type
 	// https://en.wikibooks.org/wiki/X86_Disassembly/Windows_Executable_Files#PE_Optional_Header
@@ -125,11 +131,12 @@ func (peh *PEHeader) WordLength() int {
 		return 64
 	default:
 		logrus.Warn("Unable to interpret Magic byte to determine word length")
+
 		return 0
 	}
 }
 
-// GetPEHeader returns a portable executable header from the specified file
+// GetPEHeader returns a portable executable header from the specified file.
 func GetPEHeader(path string) (*PEHeader, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -142,23 +149,30 @@ func GetPEHeader(path string) (*PEHeader, error) {
 	if _, err := f.ReadAt(dosheader[0:], 0); err != nil {
 		return nil, err
 	}
+
 	var base int64
+
 	if dosheader[0] == 'M' && dosheader[1] == 'Z' {
 		// "At offset 60 (0x3C) from the beginning of the DOS header is a pointer to
 		// the Portable Executable (PE) File header":
 		signoff := int64(binary.LittleEndian.Uint32(dosheader[0x3c:]))
+
 		var sign [4]byte
+
 		if _, err := f.ReadAt(sign[:], signoff); err != nil {
 			return nil, fmt.Errorf("reading the PE file header location: %w", err)
 		}
+
 		if !(sign[0] == 'P' && sign[1] == 'E' && sign[2] == 0 && sign[3] == 0) {
 			return nil, errors.New("invalid PE COFF file signature")
 		}
+
 		base = signoff + 4
 	} else {
 		// If the DOS header signature is not found, then discard the file as a valid
 		// windows executable
 		logrus.Debug("File is not a valid windows PE executable")
+
 		return nil, nil
 	}
 
@@ -189,12 +203,17 @@ func GetPEHeader(path string) (*PEHeader, error) {
 	}, nil
 }
 
-// Arch return the architecture
+// Arch return the architecture.
 func (pe *PEBinary) Arch() string {
 	return pe.Header.MachineType()
 }
 
-// OS returns the operating system of the binary
+// OS returns the operating system of the binary.
 func (pe *PEBinary) OS() string {
 	return WIN
+}
+
+// LinkMode returns the linking mode of the binary.
+func (pe *PEBinary) LinkMode() (LinkMode, error) {
+	return LinkModeUnknown, nil
 }

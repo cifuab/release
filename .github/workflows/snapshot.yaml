@@ -1,0 +1,85 @@
+---
+name: test-snapshot-release
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          disable-sudo: true
+          egress-policy: audit
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v3.5.2
+        with:
+          fetch-depth: 1
+
+      - name: Set up Go
+        id: go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5.3.0
+        with:
+          go-version: '1.23'
+          check-latest: true
+
+      - name: Install bom
+        uses: kubernetes-sigs/release-actions/setup-bom@a69972745f85aab4ba5d6c681e2a0e7f73eaff2b # v0.3.0
+
+      - name: Test release build
+        uses: goreleaser/goreleaser-action@90a3faa9d0182683851fbfa97ca1a2cb983bfca3 # v6.2.1
+        with:
+          args: release --clean --snapshot --skip=sign
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: check binary
+        run: |
+          ./dist/krel-amd64-linux version
+          ./dist/publish-release-amd64-linux help
+          ./dist/release-notes-amd64-linux version
+
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: artifacts
+          path: dist/*
+
+  attestation:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    needs:
+      - snapshot
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          disable-sudo: true
+          egress-policy: audit
+
+      - name: Check out code onto GOPATH
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+
+      - name: Install tejolote
+        uses: kubernetes-sigs/release-actions/setup-tejolote@a69972745f85aab4ba5d6c681e2a0e7f73eaff2b # v0.3.0
+
+      - run: |
+          tejolote attest github://kubernetes/release/"${GITHUB_RUN_ID}" --output release.intoto.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: release.intoto.json
+          path: ./release.intoto.json

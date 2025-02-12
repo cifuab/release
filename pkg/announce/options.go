@@ -17,8 +17,8 @@ limitations under the License.
 package announce
 
 type Options struct {
-	// workDir is the directory where announcement.html and
-	// announcement-subject.txt will be written
+	// workDir is the directory where announcement.html
+	// will be written
 	workDir string
 	// Release tag we will build the announcement for
 	tag    string
@@ -35,37 +35,43 @@ type Options struct {
 	changelogFile string
 }
 
-// NewOptions can be used to create a new Options instance
+// NewOptions can be used to create a new Options instance.
 func NewOptions() *Options {
 	return &Options{}
 }
 
 func (o *Options) WithWorkDir(workDir string) *Options {
 	o.workDir = workDir
+
 	return o
 }
 
 func (o *Options) WithTag(tag string) *Options {
 	o.tag = tag
+
 	return o
 }
 
 func (o *Options) WithBranch(branch string) *Options {
 	o.branch = branch
+
 	return o
 }
 
 func (o *Options) WithChangelogPath(changelogPath string) *Options {
 	o.changelogPath = changelogPath
+
 	return o
 }
 
 func (o *Options) WithChangelogHTML(changelogHTML string) *Options {
 	o.changelogHTML = changelogHTML
+
 	return o
 }
 
 func (o *Options) WithChangelogFile(changelogFile string) *Options {
 	o.changelogFile = changelogFile
+
 	return o
 }

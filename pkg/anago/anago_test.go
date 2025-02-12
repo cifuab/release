@@ -22,10 +22,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"sigs.k8s.io/release-sdk/git"
+
 	"k8s.io/release/pkg/anago"
 	"k8s.io/release/pkg/anago/anagofakes"
 	"k8s.io/release/pkg/release"
-	"sigs.k8s.io/release-sdk/git"
 )
 
 var err = errors.New("error")
@@ -45,6 +46,7 @@ func mockGenerateReleaseVersionRelease(mock *anagofakes.FakeReleaseClient) {
 	mock.GenerateReleaseVersionReturns(nil)
 }
 
+//nolint:dupl // duplications in those tests are intentional
 func TestRunStage(t *testing.T) {
 	for _, tc := range []struct {
 		prepare     func(*anagofakes.FakeStageClient)
@@ -123,13 +125,14 @@ func TestRunStage(t *testing.T) {
 
 		err := sut.Run()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
 
+//nolint:dupl // duplications in those tests are intentional
 func TestRunRelease(t *testing.T) {
 	for _, tc := range []struct {
 		prepare     func(*anagofakes.FakeReleaseClient)
@@ -199,13 +202,6 @@ func TestRunRelease(t *testing.T) {
 			},
 			shouldError: true,
 		},
-		{ // Archive fails
-			prepare: func(mock *anagofakes.FakeReleaseClient) {
-				mockGenerateReleaseVersionRelease(mock)
-				mock.ArchiveReturns(err)
-			},
-			shouldError: true,
-		},
 	} {
 		opts := anago.DefaultReleaseOptions()
 		sut := anago.NewRelease(opts)
@@ -215,9 +211,9 @@ func TestRunRelease(t *testing.T) {
 
 		err := sut.Run()
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -231,7 +227,6 @@ func TestValidateOptions(t *testing.T) {
 			provided: &anago.Options{
 				ReleaseType:   release.ReleaseTypeAlpha,
 				ReleaseBranch: git.DefaultBranch,
-				BuildVersion:  "v1.20.0-beta.1.203+8f6ffb24df9896",
 			},
 			shouldError: false,
 		},
@@ -248,6 +243,29 @@ func TestValidateOptions(t *testing.T) {
 			},
 			shouldError: true,
 		},
+	} {
+		err := tc.provided.Validate()
+		if tc.shouldError {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+}
+
+func TestValidateBuildVersion(t *testing.T) {
+	for _, tc := range []struct {
+		provided    *anago.Options
+		shouldError bool
+	}{
+		{ // success
+			provided: &anago.Options{
+				ReleaseType:   release.ReleaseTypeAlpha,
+				ReleaseBranch: git.DefaultBranch,
+				BuildVersion:  "v1.20.0-beta.1.203+8f6ffb24df9896",
+			},
+			shouldError: false,
+		},
 		{ // invalid build version
 			provided: &anago.Options{
 				ReleaseType:   release.ReleaseTypeAlpha,
@@ -258,11 +276,58 @@ func TestValidateOptions(t *testing.T) {
 		},
 	} {
 		state := anago.DefaultState()
+
+		err := tc.provided.ValidateBuildVersion(state)
+		if tc.shouldError {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+}
+
+func TestStagingOptionsValidate(t *testing.T) {
+	for _, tc := range []struct {
+		provided    *anago.StageOptions
+		shouldError bool
+	}{
+		{ // valid build version should validate
+			provided: &anago.StageOptions{
+				&anago.Options{
+					ReleaseType:   release.ReleaseTypeAlpha,
+					ReleaseBranch: git.DefaultBranch,
+					BuildVersion:  "v1.20.0-beta.1.203+8f6ffb24df9896",
+				},
+			},
+			shouldError: false,
+		},
+		{ // empty build version should validate
+			provided: &anago.StageOptions{
+				&anago.Options{
+					ReleaseType:   release.ReleaseTypeAlpha,
+					ReleaseBranch: git.DefaultBranch,
+				},
+			},
+			shouldError: false,
+		},
+		{ // invalid build version should not validate
+			provided: &anago.StageOptions{
+				&anago.Options{
+					ReleaseType:   release.ReleaseTypeAlpha,
+					ReleaseBranch: git.DefaultBranch,
+					BuildVersion:  "decaf-bad",
+				},
+			},
+			shouldError: true,
+		},
+	} {
+		state := anago.DefaultState()
+
 		err := tc.provided.Validate(state)
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -293,9 +358,9 @@ func TestSubmitStage(t *testing.T) {
 
 		err := sut.Submit(false)
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }
@@ -326,9 +391,9 @@ func TestSubmitRelease(t *testing.T) {
 
 		err := sut.Submit(false)
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }

@@ -23,15 +23,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"sigs.k8s.io/release-sdk/object"
 )
 
 func TestGetBuildSubjects(t *testing.T) {
 	// create a test dir with stuff
-	dir, err := os.MkdirTemp("", "provenance-test-")
-	require.Nil(t, err)
-	defer os.RemoveAll(dir)
-	require.Nil(t, os.Mkdir(filepath.Join(dir, ImagesPath), os.FileMode(0o755)))
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, ImagesPath), os.FileMode(0o755)))
 
 	testFiles := map[string]struct {
 		data     string
@@ -48,7 +47,7 @@ func TestGetBuildSubjects(t *testing.T) {
 	}
 
 	for filename, testData := range testFiles {
-		require.Nil(t, os.WriteFile(filepath.Join(dir, ImagesPath, filename), []byte(testData.data), os.FileMode(0o644)))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ImagesPath, filename), []byte(testData.data), os.FileMode(0o644)))
 	}
 
 	impl := defaultProvenanceReaderImpl{}
@@ -59,7 +58,7 @@ func TestGetBuildSubjects(t *testing.T) {
 	}
 	version := "v1.0"
 	subjects, err := impl.GetBuildSubjects(&opts, dir, version)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, len(testFiles), len(subjects))
 
 	// Check the files have the bucket prefix:
@@ -79,10 +78,8 @@ func TestGetBuildSubjects(t *testing.T) {
 
 func TestGetStagingSubjects(t *testing.T) {
 	// create a test dir with stuff
-	dir, err := os.MkdirTemp("", "provenance-test-")
-	require.Nil(t, err)
-	defer os.RemoveAll(dir)
-	require.Nil(t, os.Mkdir(filepath.Join(dir, "second"), os.FileMode(0o755)))
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "second"), os.FileMode(0o755)))
 
 	testFiles := map[string]struct {
 		data     string
@@ -99,7 +96,7 @@ func TestGetStagingSubjects(t *testing.T) {
 	}
 
 	for filename, testData := range testFiles {
-		require.Nil(t, os.WriteFile(filepath.Join(dir, filename), []byte(testData.data), os.FileMode(0o644)))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte(testData.data), os.FileMode(0o644)))
 	}
 
 	impl := defaultProvenanceReaderImpl{}
@@ -109,7 +106,7 @@ func TestGetStagingSubjects(t *testing.T) {
 		WorkspaceDir: dir,
 	}
 	subjects, err := impl.GetStagingSubjects(&opts, dir)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, len(testFiles), len(subjects))
 
 	// Check the files have the bucket prefix:
@@ -120,6 +117,7 @@ func TestGetStagingSubjects(t *testing.T) {
 	for _, sub := range subjects {
 		filename := filepath.Base(sub.Name)
 		require.NotEmpty(t, filename)
+
 		_, ok := testFiles[filepath.Join("second", filename)]
 		if filename == SourcesTar {
 			require.False(t, ok)

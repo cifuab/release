@@ -27,9 +27,9 @@ IMGNAME = kube-cross
 # Example:
 # - v1.100.0-go1.17-bullseye.0 satisfies SemVer regex, while:
 # - v1.100-go1.17-bullseye.0 does not
-KUBERNETES_VERSION ?= v1.23.0
-GO_VERSION ?= 1.18.3
-GO_MAJOR_VERSION ?= 1.18
+KUBERNETES_VERSION ?= v1.32.0
+GO_VERSION ?= 1.23.6
+GO_MAJOR_VERSION ?= 1.23
 OS_CODENAME ?= bullseye
 REVISION ?= 0
 TYPE ?= default
@@ -53,7 +53,7 @@ export DOCKER_CLI_EXPERIMENTAL=enabled
 # TODO: Support multi-arch kube-cross images for linux/arm
 #       Currently some of the components references in the Dockerfile are
 #       not supported in specific architectures
-PLATFORMS ?= linux/amd64 linux/arm64 linux/ppc64le linux/s390x #linux/arm
+PLATFORMS ?= linux/amd64 linux/arm64 #linux/arm
 
 # for legacy images only build linux/amd64
 ifeq ($(TYPE), legacy)
@@ -83,7 +83,6 @@ container: check-env init-docker-buildx
 			--tag $(IMAGE)-$${platform##*/}:latest-$(CONFIG)-$(TYPE) \
 			--build-arg=BASEIMAGE=$(BASEIMAGE) \
 			--build-arg=PROTOBUF_VERSION=$(PROTOBUF_VERSION) \
-			--build-arg=ETCD_VERSION=$(ETCD_VERSION) \
 			--file $(TYPE)/Dockerfile \
 			.; \
 	done

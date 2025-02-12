@@ -21,7 +21,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/release/pkg/release"
 	"k8s.io/release/pkg/release/releasefakes"
 )
@@ -41,12 +43,10 @@ func TestPublishVersion(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		bucket  string
-		gcsRoot string
-		version string
-		prepare func(
-			*releasefakes.FakePublisherClient,
-		) (buildDir string, cleanup func())
+		bucket        string
+		gcsRoot       string
+		version       string
+		prepare       func(*releasefakes.FakePublisherClient)
 		privateBucket bool
 		fast          bool
 		shouldError   bool
@@ -56,34 +56,17 @@ func TestPublishVersion(t *testing.T) {
 			gcsRoot: "release",
 			version: testVersion,
 			fast:    true,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
+			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mock.GSUtilOutputReturnsOnCall(0, olderTestVersion, nil)
 				mock.GSUtilOutputReturnsOnCall(1, testVersion, nil)
 				mock.GetURLResponseReturns(testVersion, nil)
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
 			},
 			shouldError: false,
 		},
 		{ // failure GetMarkerPath
-			bucket:  release.ProductionBucket,
-			version: testVersion,
-			fast:    true,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
-				mock.GetMarkerPathReturns("", err)
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
-			},
+			bucket:      release.ProductionBucket,
+			version:     testVersion,
+			fast:        true,
 			shouldError: true,
 		},
 		{ // success update on private bucket
@@ -91,16 +74,9 @@ func TestPublishVersion(t *testing.T) {
 			gcsRoot:       "release",
 			version:       testVersion,
 			privateBucket: true,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
+			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mockVersionMarkers(mock)
 				mock.GSUtilOutputReturnsOnCall(5, testVersion, nil)
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
 			},
 			shouldError: false,
 		},
@@ -109,16 +85,9 @@ func TestPublishVersion(t *testing.T) {
 			gcsRoot:       "release",
 			version:       testVersion,
 			privateBucket: true,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
+			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mockVersionMarkers(mock)
 				mock.GSUtilOutputReturnsOnCall(5, "", errors.New(""))
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
 			},
 			shouldError: true,
 		},
@@ -127,16 +96,9 @@ func TestPublishVersion(t *testing.T) {
 			gcsRoot:       "release",
 			version:       testVersion,
 			privateBucket: true,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
+			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mockVersionMarkers(mock)
 				mock.GSUtilOutputReturnsOnCall(5, "wrong", nil)
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
 			},
 			shouldError: true,
 		},
@@ -145,16 +107,9 @@ func TestPublishVersion(t *testing.T) {
 			gcsRoot:       "release",
 			version:       testVersion,
 			privateBucket: false,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
+			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mockVersionMarkers(mock)
 				mock.GetURLResponseReturns(testVersion, nil)
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
 			},
 			shouldError: false,
 		},
@@ -163,15 +118,9 @@ func TestPublishVersion(t *testing.T) {
 			gcsRoot:       "release",
 			version:       testVersion,
 			privateBucket: false,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
+			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mockVersionMarkers(mock)
 				mock.GetURLResponseReturns("", errors.New(""))
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
 			},
 			shouldError: true,
 		},
@@ -180,53 +129,41 @@ func TestPublishVersion(t *testing.T) {
 			gcsRoot:       "release",
 			version:       testVersion,
 			privateBucket: false,
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
+			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mock.GSUtilReturnsOnCall(0, errors.New(""))
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
 			},
 			shouldError: true,
 		},
 		{ // failure no semver version
-			bucket:  release.ProductionBucket,
-			gcsRoot: "release",
-			version: "wrong",
-			prepare: func(mock *releasefakes.FakePublisherClient) (string, func()) {
-				tempDir, err := os.MkdirTemp("", "publish-version-test-")
-				require.Nil(t, err)
-
-				return tempDir, func() {
-					require.Nil(t, os.RemoveAll(tempDir))
-				}
-			},
+			bucket:      release.ProductionBucket,
+			gcsRoot:     "release",
+			version:     "wrong",
 			shouldError: true,
 		},
 	} {
 		sut := release.NewPublisher()
 		clientMock := &releasefakes.FakePublisherClient{}
 		sut.SetClient(clientMock)
-		buildDir, cleanup := tc.prepare(clientMock)
+
+		if tc.prepare != nil {
+			tc.prepare(clientMock)
+		}
 
 		err := sut.PublishVersion(
-			"release", tc.version, buildDir, tc.bucket, tc.gcsRoot,
+			"release", tc.version, t.TempDir(), tc.bucket, tc.gcsRoot,
 			nil, tc.privateBucket, tc.fast,
 		)
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
-		cleanup()
 	}
 }
 
 func TestPublishReleaseNotesIndex(t *testing.T) {
 	err := errors.New("")
+
 	for _, tc := range []struct {
 		prepare     func(*releasefakes.FakePublisherClient)
 		shouldError bool
@@ -297,15 +234,9 @@ func TestPublishReleaseNotesIndex(t *testing.T) {
 			},
 			shouldError: true,
 		},
-		{ // failure NormalizePath 0
+		{ // failure NormalizePath
 			prepare: func(mock *releasefakes.FakePublisherClient) {
 				mock.NormalizePathReturnsOnCall(0, "", err)
-			},
-			shouldError: true,
-		},
-		{ // failure NormalizePath 1
-			prepare: func(mock *releasefakes.FakePublisherClient) {
-				mock.NormalizePathReturnsOnCall(1, "", err)
 			},
 			shouldError: true,
 		},
@@ -316,12 +247,87 @@ func TestPublishReleaseNotesIndex(t *testing.T) {
 		tc.prepare(clientMock)
 
 		err := sut.PublishReleaseNotesIndex(
-			"", "", "",
+			"gs://foo-bar/release", "gs://foo-bar/release/v1.2.3/index.json", "v1.2.3",
 		)
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
+	}
+}
+
+func TestIsUpToDate(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name, oldVersion, newVersion string
+		expected                     bool
+	}{
+		{
+			name:       "Final version after RC",
+			oldVersion: "1.30.0-rc.2.10+00000000000000",
+			newVersion: "1.30.0-11+00000000000000",
+			expected:   false,
+		},
+		{
+			name:       "More commits",
+			oldVersion: "1.30.0-10+00000000000000",
+			newVersion: "1.30.0-11+00000000000000",
+			expected:   false,
+		},
+		{
+			name:       "Newer release",
+			oldVersion: "1.29.0-0+00000000000000",
+			newVersion: "1.29.1-0+00000000000000",
+			expected:   false,
+		},
+		{
+			name:       "Counter reset after RC",
+			oldVersion: "1.30.0-rc.2.10+00000000000000",
+			newVersion: "1.30.0-1+00000000000000",
+			expected:   false,
+		},
+		{
+			name:       "Patch after newer RC (artificial corner case)",
+			oldVersion: "1.29.0-rc.0.20+00000000000000",
+			newVersion: "1.28.1-2+00000000000000",
+			expected:   true,
+		},
+	} {
+		oldVersion := semver.MustParse(tc.oldVersion)
+		newVersion := semver.MustParse(tc.newVersion)
+		expected := tc.expected
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			res := release.IsUpToDate(oldVersion, newVersion)
+			require.Equal(t, expected, res)
+		})
+	}
+}
+
+func TestFixPublicReleaseNotesURL(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		input, expected string
+	}{
+		"should not affect correct URL": {
+			input:    "https://dl.k8s.io/release/v1.32.0-beta.0/release-notes.json",
+			expected: "https://dl.k8s.io/release/v1.32.0-beta.0/release-notes.json",
+		},
+		"should fix URL referring to production bucket": {
+			input:    "gs://767373bbdcb8270361b96548387bf2a9ad0d48758c35/release/v1.29.11/release-notes.json",
+			expected: "https://dl.k8s.io/release/v1.29.11/release-notes.json",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			res := release.FixPublicReleaseNotesURL(tc.input)
+			require.Equal(t, tc.expected, res)
+		})
 	}
 }

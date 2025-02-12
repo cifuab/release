@@ -17,17 +17,26 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"cloud.google.com/go/storage"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"k8s.io/release/pkg/announce"
+	"google.golang.org/api/option"
+
+	"k8s.io/release/pkg/announce/github"
+	"k8s.io/release/pkg/announce/sbom"
 )
 
-// releaseNotesCmd represents the subcommand for `krel release-notes`
+// releaseNotesCmd represents the subcommand for `krel release-notes`.
 var githubPageCmd = &cobra.Command{
 	Use:   "github",
 	Short: "Updates the github page of a release",
@@ -63,6 +72,11 @@ to the asset file:
 
   --asset="_output/kubernetes-1.18.2-2.fc33.x86_64.rpm:RPM Package for amd64"
 
+Assets can be read from Google Cloud buckets using ambient credentials.
+Simply point the asset flag to an object in a bucket instead of a file path:
+
+  --asset="gs://kubernetes-release/release/v1.25.1/bin/linux/amd64/kubectl"
+
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Run the PR creation function
@@ -74,6 +88,7 @@ type githubPageCmdLineOptions struct {
 	noupdate         bool
 	draft            bool
 	sbom             bool
+	sbomFormat       string
 	name             string
 	repo             string
 	template         string
@@ -138,14 +153,18 @@ func init() {
 		true,
 		"Generate an SPDX bill of materials and attach it to the release",
 	)
-
+	githubPageCmd.PersistentFlags().StringVar(
+		&ghPageOpts.sbomFormat,
+		"sbom-format",
+		string(sbom.FormatJSON),
+		"format to use for the SBOM [json|tag-value]",
+	)
 	githubPageCmd.PersistentFlags().StringVar(
 		&ghPageOpts.repoPath,
 		"repo-path",
 		".",
 		"Path to the source code repository",
 	)
-
 	githubPageCmd.PersistentFlags().StringVar(
 		&ghPageOpts.ReleaseNotesFile,
 		"release-notes-file",
@@ -166,49 +185,140 @@ func init() {
 	rootCmd.AddCommand(githubPageCmd)
 }
 
-func getAssetsFromStrings(assetStrings []string) []announce.Asset {
-	r := []announce.Asset{}
+func getAssetsFromStrings(assetStrings []string) ([]sbom.Asset, error) {
+	r := []sbom.Asset{}
+
+	var isBucket bool
 	for _, s := range assetStrings {
+		isBucket = false
+
+		if strings.HasPrefix(s, "gs:") {
+			s = strings.TrimPrefix(s, "gs:")
+			isBucket = true
+		}
+
 		parts := strings.Split(s, ":")
 		l := ""
+
 		if len(parts) > 1 {
 			l = parts[1]
 		}
-		r = append(r, announce.Asset{
+
+		if isBucket {
+			path, err := processRemoteAsset("gs:" + parts[0])
+			if err != nil {
+				return nil, fmt.Errorf("downloading remote asset: %w", err)
+			}
+
+			parts[0] = path
+		}
+
+		r = append(r, sbom.Asset{
 			Path:     filepath.Base(parts[0]),
 			ReadFrom: parts[0],
 			Label:    l,
 		})
 	}
-	return r
+
+	return r, nil
+}
+
+// processRemoteAsset gets an object from a bucket and gets it ready for upload
+// as an asset of the github release.
+func processRemoteAsset(urlString string) (path string, err error) {
+	u, err := url.Parse(urlString)
+	if err != nil {
+		return path, fmt.Errorf("parsing URL: %w", err)
+	}
+
+	if u.Scheme != "gs" {
+		return path, errors.New("only GCS objects are supported at this time")
+	}
+
+	filename := filepath.Base(u.Path)
+	if filename == "" {
+		return path, errors.New("unable to parse filename from path")
+	}
+
+	ctx := context.Background()
+
+	client, err := storage.NewClient(ctx, option.WithoutAuthentication())
+	if err != nil {
+		return path, fmt.Errorf("creating storage client: %w", err)
+	}
+
+	defer client.Close()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*50)
+	defer cancel()
+
+	tmpDir, err := os.MkdirTemp("", "publish-release-asset-")
+	if err != nil {
+		return path, fmt.Errorf("creating temp directory: %w", err)
+	}
+
+	rc, err := client.Bucket(u.Hostname()).Object(strings.TrimPrefix(u.Path, "/")).NewReader(ctx)
+	if err != nil {
+		return path, fmt.Errorf("creating bucket reader: %w", err)
+	}
+	defer rc.Close()
+
+	f, err := os.Create(filepath.Join(tmpDir, filename))
+	if err != nil {
+		return path, fmt.Errorf("creating temporary file: %w", err)
+	}
+
+	if _, err := io.Copy(f, rc); err != nil {
+		return path, fmt.Errorf("copying data: %w", err)
+	}
+
+	if err = f.Close(); err != nil {
+		return path, fmt.Errorf("closing file: %w", err)
+	}
+
+	return filepath.Join(tmpDir, filename), nil
 }
 
 func runGithubPage(opts *githubPageCmdLineOptions) (err error) {
 	// Generate the release SBOM
-	assets := getAssetsFromStrings(opts.assets)
-	sbom := ""
+	assets, err := getAssetsFromStrings(opts.assets)
+	if err != nil {
+		return fmt.Errorf("getting assets: %w", err)
+	}
+
+	sbomStr := ""
 	if opts.sbom {
 		// Generate the assets file
-		sbom, err = announce.GenerateReleaseSBOM(&announce.SBOMOptions{
+		sbomStr, err = sbom.NewSBOM(&sbom.Options{
 			ReleaseName:   opts.name,
 			Repo:          opts.repo,
 			RepoDirectory: opts.repoPath,
 			Assets:        assets,
 			Tag:           commandLineOpts.tag,
-		})
+			Format:        sbom.SBOMFormat(opts.sbomFormat),
+		}).Generate()
 		if err != nil {
 			return fmt.Errorf("generating sbom: %w", err)
 		}
-		opts.assets = append(opts.assets, sbom+":SPDX Software Bill of Materials (SBOM)")
+
+		opts.assets = append(opts.assets, sbomStr+":SPDX Software Bill of Materials (SBOM)")
 		// Delete the temporary sbom  when we're done
 		if commandLineOpts.nomock {
-			defer os.Remove(sbom)
+			defer os.Remove(sbomStr)
 		}
 	}
 
+	newAssets := make([]string, len(assets)+1)
+	for i, a := range assets {
+		newAssets[i] = a.ReadFrom
+	}
+
+	// add sbom to the path to upload
+	newAssets[len(assets)] = sbomStr
+
 	// Build the release page options
-	announceOpts := announce.GitHubPageOptions{
-		AssetFiles:            opts.assets,
+	ghOpts := github.Options{
+		AssetFiles:            newAssets,
 		Tag:                   commandLineOpts.tag,
 		NoMock:                commandLineOpts.nomock,
 		UpdateIfReleaseExists: !opts.noupdate,
@@ -218,25 +328,25 @@ func runGithubPage(opts *githubPageCmdLineOptions) (err error) {
 	}
 
 	// Assign the repository data
-	if err := announceOpts.SetRepository(opts.repo); err != nil {
+	if err := ghOpts.SetRepository(opts.repo); err != nil {
 		return fmt.Errorf("assigning the repository slug: %w", err)
 	}
 
 	// Assign the substitutions
-	if err := announceOpts.ParseSubstitutions(opts.substitutions); err != nil {
+	if err := ghOpts.ParseSubstitutions(opts.substitutions); err != nil {
 		return fmt.Errorf("parsing template substitutions: %w", err)
 	}
 
 	// Read the csutom template data
-	if err := announceOpts.ReadTemplate(opts.template); err != nil {
+	if err := ghOpts.ReadTemplate(opts.template); err != nil {
 		return fmt.Errorf("reading the template file: %w", err)
 	}
 
 	// Validate the options
-	if err := announceOpts.Validate(); err != nil {
+	if err := ghOpts.Validate(); err != nil {
 		return fmt.Errorf("validating options: %w", err)
 	}
 
 	// Run the update process
-	return announce.UpdateGitHubPage(&announceOpts)
+	return github.NewGitHub(&ghOpts).UpdateGitHubPage()
 }

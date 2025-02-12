@@ -21,8 +21,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-sdk/object"
+
+	"k8s.io/release/pkg/release"
 )
 
 var DefaultExtraVersionMarkers = []string{}
@@ -34,7 +35,7 @@ type Instance struct {
 }
 
 // NewInstance can be used to create a new build `Instance`.
-// TODO: Prefer functional options here instead
+// TODO: Prefer functional options here instead.
 func NewInstance(opts *Options) *Instance {
 	instance := &Instance{
 		opts:     opts,
@@ -105,7 +106,7 @@ type Options struct {
 	// with non-public registries.
 	ConfigureDocker bool
 
-	// Specifies a fast build (linux/amd64 only).
+	// Specifies a fast build.
 	Fast bool
 
 	// Do not exit error if the build already exists on the GCS path.
@@ -123,9 +124,12 @@ type Options struct {
 	// Stage additional files defined by `ExtraGcpStageFiles` and
 	// `ExtraWindowsStageFiles`, otherwise they will be skipped.
 	StageExtraFiles bool
+
+	// This sets the KUBE_BUILD_PLATFORMS value for make release/quick-release commands
+	KubeBuildPlatforms string
 }
 
-// TODO: Refactor so that version is not required as a parameter
+// TODO: Refactor so that version is not required as a parameter.
 func (bi *Instance) getGCSBuildPath(version string) (string, error) {
 	if bi.opts.Bucket == "" {
 		bi.setBucket()
@@ -146,6 +150,7 @@ func (bi *Instance) getGCSBuildPath(version string) (string, error) {
 
 func (bi *Instance) setBucket() {
 	bucket := bi.opts.Bucket
+
 	if bi.opts.Bucket == "" {
 		if bi.opts.CI {
 			// TODO: Remove this once all CI and release jobs run on K8s Infra

@@ -28,6 +28,7 @@ import (
 	"github.com/shurcooL/githubv4"
 	"github.com/spf13/cobra"
 	"github.com/tj/go-spin"
+	"golang.org/x/net/context"
 )
 
 var rootCmd = &cobra.Command{
@@ -39,7 +40,8 @@ var rootCmd = &cobra.Command{
 		// all available reporters are used by default that are used to generate the report
 		// CLI sub commands can be used to specify a specific reporter
 		selectedReporters := AllImplementedReporters
-		return RunReport(cfg, &selectedReporters)
+
+		return RunReport(cmd.Context(), cfg, &selectedReporters)
 	},
 }
 
@@ -48,7 +50,7 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
-// Config configuration that is getting injected into ci-signal report functions
+// Config configuration that is getting injected into ci-signal report functions.
 type Config struct {
 	GithubClient   *githubv4.Client
 	GithubToken    string
@@ -67,10 +69,11 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfg.Filepath, "file", "f", "", "Specify a filepath to write the report to a file")
 }
 
-// RunReport used to execute
-func RunReport(cfg *Config, reporters *CIReporters) error {
+// RunReport used to execute.
+func RunReport(ctx context.Context, cfg *Config, reporters *CIReporters) error {
 	go func() {
 		s := spin.New()
+
 		for {
 			fmt.Printf("\rloading data %s ", s.Next())
 			time.Sleep(100 * time.Millisecond)
@@ -78,7 +81,7 @@ func RunReport(cfg *Config, reporters *CIReporters) error {
 	}()
 
 	// collect data from filtered reporters
-	reports, err := reporters.CollectReportDataFromReporters(cfg)
+	reports, err := reporters.CollectReportDataFromReporters(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -95,29 +98,29 @@ func RunReport(cfg *Config, reporters *CIReporters) error {
 // Generic reporter types
 //
 
-// CIReportDataFields used so specify multiple reports
+// CIReportDataFields used so specify multiple reports.
 type CIReportDataFields []CIReportData
 
-// Marshal used to marshal CIReports into bytes
+// Marshal used to marshal CIReports into bytes.
 func (d *CIReportDataFields) Marshal() ([]byte, error) {
 	return json.Marshal(d)
 }
 
-// CIReportData format of the ci report data that is being generated
+// CIReportData format of the ci report data that is being generated.
 type CIReportData struct {
 	Info    CIReporterInfo    `json:"info"`
 	Records []*CIReportRecord `json:"records"`
 }
 
-// CIReporterInfo meta information about a reporter implementation
+// CIReporterInfo meta information about a reporter implementation.
 type CIReporterInfo struct {
 	Name CIReporterName `json:"name"`
 }
 
-// CIReporterName identifying name of a reporter
+// CIReporterName identifying name of a reporter.
 type CIReporterName string
 
-// CIReportRecord generic report data format
+// CIReportRecord generic report data format.
 type CIReportRecord struct {
 	Title            string `json:"title"`
 	TestgridBoard    string `json:"testgrid_board"`
@@ -132,45 +135,52 @@ type CIReportRecord struct {
 // Generic CIReporter interface and related functions
 //
 
-// CIReporter interface that is used to implement a new reporter
+// CIReporter interface that is used to implement a new reporter.
 type CIReporter interface {
 	// GetCIReporterHead sets meta information which is used to differentiate reporters
 	GetCIReporterHead() CIReporterInfo
 	// CollectReportData is used to request / collect all report data
-	CollectReportData(*Config) ([]*CIReportRecord, error)
+	CollectReportData(context.Context, *Config) ([]*CIReportRecord, error)
 }
 
-// CIReporters used to specify multiple CIReports, type gets extended by helper functions to collect and visualize report data
+// CIReporters used to specify multiple CIReports, type gets extended by helper functions to collect and visualize report data.
 type CIReporters []CIReporter
 
-// AllImplementedReporters list of implemented reports that are used to generate ci-reports
+// AllImplementedReporters list of implemented reports that are used to generate ci-reports.
 var AllImplementedReporters = CIReporters{GithubReporter{}, TestgridReporter{}}
 
-// SearchReporter used to filter a implemented reporter by name
-func SearchReporter(reporterName string) (CIReporter, error) {
+// SearchReporter used to filter a implemented reporter by name.
+func SearchReporter(ctx context.Context, reporterName string) (CIReporter, error) {
 	var reporter CIReporter
+
 	reporterFound := false
+
 	for _, r := range AllImplementedReporters {
 		if strings.EqualFold(string(r.GetCIReporterHead().Name), reporterName) {
 			reporter = r
 			reporterFound = true
+
 			break
 		}
 	}
+
 	if !reporterFound {
 		return nil, errors.New("could not find a implemented reporter")
 	}
+
 	return reporter, nil
 }
 
-// CollectReportDataFromReporters used to collect data for multiple reporters
-func (r *CIReporters) CollectReportDataFromReporters(cfg *Config) (*CIReportDataFields, error) {
+// CollectReportDataFromReporters used to collect data for multiple reporters.
+func (r *CIReporters) CollectReportDataFromReporters(ctx context.Context, cfg *Config) (*CIReportDataFields, error) {
 	collectedReports := CIReportDataFields{}
+
 	for i := range *r {
 		reporters := *r
 		reporter := reporters[i]
 		reporterHead := reporter.GetCIReporterHead()
-		reportData, err := reporter.CollectReportData(cfg)
+
+		reportData, err := reporter.CollectReportData(ctx, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -180,27 +190,31 @@ func (r *CIReporters) CollectReportDataFromReporters(cfg *Config) (*CIReportData
 			Records: reportData,
 		})
 	}
+
 	return &collectedReports, nil
 }
 
 // PrintReporterData used to print report data
-// 1. Get a output stream to write the data to
-// 2. Write data to stream
-// 	2.1. Write data in JSON format if set so
-// 	2.2. Write data in table format
+//  1. Get a output stream to write the data to
+//  2. Write data to stream
+//     2.1. Write data in JSON format if set so
+//     2.2. Write data in table format
 func PrintReporterData(cfg *Config, reports *CIReportDataFields) error {
 	// Get a stream to write the data to (file stream / standard out stream)
 	var out *os.File
+
 	if cfg.Filepath != "" {
 		// open output file
 		fileOut, err := os.OpenFile(cfg.Filepath, os.O_WRONLY|os.O_CREATE, 0o666)
 		if err != nil {
 			return fmt.Errorf("could not open or create a file at %s to write the ci signal report to: %w", cfg.Filepath, err)
 		}
+
 		out = fileOut
 	} else {
 		out = os.Stdout
 	}
+
 	defer func() {
 		if err := out.Close(); err != nil {
 			panic(err)
@@ -214,17 +228,19 @@ func PrintReporterData(cfg *Config, reports *CIReportDataFields) error {
 		if err != nil {
 			return fmt.Errorf("could not marshal report data: %w", err)
 		}
-		_, err = out.WriteString(string(d))
+
+		_, err = out.Write(d)
 		if err != nil {
 			return fmt.Errorf("could not write to output stream: %w", err)
 		}
+
 		return nil
 	}
 
 	// print report in table format, (short table differs)
 	for _, r := range *reports {
 		// write header
-		_, err := out.WriteString(fmt.Sprintf("\n%s REPORT\n\n", strings.ToUpper(string(r.Info.Name))))
+		_, err := fmt.Fprintf(out, "\n%s REPORT\n\n", strings.ToUpper(string(r.Info.Name)))
 		if err != nil {
 			return fmt.Errorf("could not write to output stream: %w", err)
 		}
@@ -235,11 +251,13 @@ func PrintReporterData(cfg *Config, reports *CIReportDataFields) error {
 		// table in short version differs from regular table
 		if cfg.ShortReport {
 			table.SetHeader([]string{"TESTGRID BOARD", "TITLE", "STATUS", "STATUS DETAILS"})
+
 			for _, record := range r.Records {
 				data = append(data, []string{record.TestgridBoard, record.Title, record.Status, record.StatusDetails})
 			}
 		} else {
 			table.SetHeader([]string{"TESTGRID BOARD", "TITLE", "STATUS", "STATUS DETAILS", "URL", "UPDATED AT"})
+
 			for _, record := range r.Records {
 				data = append(data, []string{
 					record.TestgridBoard,
@@ -250,6 +268,7 @@ func PrintReporterData(cfg *Config, reports *CIReportDataFields) error {
 				})
 			}
 		}
+
 		table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
 		table.AppendBulk(data)
 		table.SetCenterSeparator("|")
@@ -258,16 +277,20 @@ func PrintReporterData(cfg *Config, reports *CIReportDataFields) error {
 		// write a summary
 		countCategories := map[string]int{}
 		categoryIndex := 2
+
 		for i := range data {
 			countCategories[data[i][categoryIndex]]++
 		}
+
 		categoryCounts := ""
 		for category, categoryCount := range countCategories {
 			categoryCounts += fmt.Sprintf("%s:%d ", category, categoryCount)
 		}
-		if _, err := out.WriteString(fmt.Sprintf("\nSUMMARY - Total:%d %s\n", len(data), categoryCounts)); err != nil {
+
+		if _, err := fmt.Fprintf(out, "\nSUMMARY - Total:%d %s\n", len(data), categoryCounts); err != nil {
 			return fmt.Errorf("could not write to output stream: %w", err)
 		}
 	}
+
 	return nil
 }

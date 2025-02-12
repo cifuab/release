@@ -17,15 +17,13 @@ limitations under the License.
 package main
 
 import (
-	"os"
-
 	"github.com/sirupsen/logrus"
+
 	"k8s.io/release/cmd/ci-reporter/cmd"
 )
 
 func main() {
 	if err := cmd.Execute(); err != nil {
 		logrus.Fatal(err)
-		os.Exit(1)
 	}
 }

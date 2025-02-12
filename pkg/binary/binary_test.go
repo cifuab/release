@@ -18,11 +18,11 @@ package binary_test
 
 import (
 	"encoding/base64"
-	"fmt"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/release/pkg/binary"
 	"k8s.io/release/pkg/binary/binaryfakes"
 )
@@ -36,7 +36,7 @@ type TestHeader struct {
 
 // GetTestHeaders returns an array of test binary fragments. The base64 encoded data
 // corresponds to the first bytes (between 128 and 512) of the kubectl executables
-// of the Kubernetes v1.20.2 release. They are note meant to be the full excecutables,
+// of the Kubernetes v1.20.2 release. They are note meant to be the full executables,
 // only the first bytes to test the header analysis functions.
 func GetTestHeaders() []TestHeader {
 	return []TestHeader{
@@ -91,19 +91,19 @@ func GetTestHeaders() []TestHeader {
 	}
 }
 
-// writeTestBinary Writes a test binary and returns the path
-func writeTestBinary(t *testing.T, base64Data *string) *os.File {
-	f, err := os.CreateTemp("", "test-binary-")
-	require.Nil(t, err)
+// writeTestBinary Writes a test binary and returns the path.
+func writeTestBinary(t *testing.T, base64Data string) *os.File {
+	f, err := os.CreateTemp(t.TempDir(), "test-binary-")
+	require.NoError(t, err)
 
-	binData, err := base64.StdEncoding.DecodeString(*base64Data)
-	require.Nil(t, err)
+	binData, err := base64.StdEncoding.DecodeString(base64Data)
+	require.NoError(t, err)
 
 	_, err = f.Write(binData)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	_, err = f.Seek(0, 0)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	return f
 }
@@ -111,6 +111,7 @@ func writeTestBinary(t *testing.T, base64Data *string) *os.File {
 func TestOS(t *testing.T) {
 	mock := &binaryfakes.FakeBinaryImplementation{}
 	mock.OSReturns("darwin")
+
 	sut := &binary.Binary{}
 	sut.SetImplementation(mock)
 
@@ -120,6 +121,7 @@ func TestOS(t *testing.T) {
 func TestArch(t *testing.T) {
 	mock := &binaryfakes.FakeBinaryImplementation{}
 	mock.ArchReturns("amd64")
+
 	sut := &binary.Binary{}
 	sut.SetImplementation(mock)
 
@@ -128,10 +130,11 @@ func TestArch(t *testing.T) {
 
 func TestGetELFHeader(t *testing.T) {
 	for _, testBin := range GetTestHeaders() {
-		f := writeTestBinary(t, &testBin.Data)
+		f := writeTestBinary(t, testBin.Data)
 		header, err := binary.GetELFHeader(f.Name())
 		os.Remove(f.Name())
-		require.Nil(t, err)
+		require.NoError(t, err)
+
 		if testBin.OS == "linux" {
 			require.NotNil(t, header)
 			require.Equal(t, testBin.Bits, header.WordLength())
@@ -143,10 +146,11 @@ func TestGetELFHeader(t *testing.T) {
 
 func TestGetMachOHeader(t *testing.T) {
 	for _, testBin := range GetTestHeaders() {
-		f := writeTestBinary(t, &testBin.Data)
+		f := writeTestBinary(t, testBin.Data)
 		header, err := binary.GetMachOHeader(f.Name())
 		os.Remove(f.Name())
-		require.Nil(t, err)
+		require.NoError(t, err)
+
 		if testBin.OS == "darwin" {
 			require.NotNil(t, header)
 			require.Equal(t, testBin.Bits, header.WordLength())
@@ -158,12 +162,13 @@ func TestGetMachOHeader(t *testing.T) {
 
 func TestGetPEHeader(t *testing.T) {
 	for _, testBin := range GetTestHeaders() {
-		f := writeTestBinary(t, &testBin.Data)
+		f := writeTestBinary(t, testBin.Data)
 		header, err := binary.GetPEHeader(f.Name())
 		os.Remove(f.Name())
-		require.Nil(t, err)
+		require.NoError(t, err)
+
 		if testBin.OS == "windows" {
-			require.NotNil(t, header, fmt.Sprintf("testing binary for %s/%s", testBin.OS, testBin.Arch))
+			require.NotNil(t, header, "testing binary for %s/%s", testBin.OS, testBin.Arch)
 			require.Equal(t, testBin.Bits, header.WordLength())
 		} else {
 			require.Nil(t, header)

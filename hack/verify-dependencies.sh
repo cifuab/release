@@ -18,25 +18,34 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-VERSION=v0.3.0
+VERSION=0.5.4
+
 REPO_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+BIN_PATH="$REPO_ROOT/bin"
+ZEITGEIST_BIN="$BIN_PATH/zeitgeist"
 
-# Ensure that we find the binaries we build before anything else.
-gobin=${GOBIN:-$(go env GOBIN)}
-if [[ -z $gobin ]]; then
-  gobin="$(go env GOPATH)/bin"
+# Get the architecture
+arch=$(uname -m | tr '[:upper:]' '[:lower:]')
+# Convert x86_64 to amd64
+if [ "$arch" = "x86_64" ]; then
+    arch="amd64"
 fi
-PATH="${gobin}:${PATH}"
 
-# Install zeitgeist
-cd "${REPO_ROOT}/internal"
-GO111MODULE=on go install sigs.k8s.io/zeitgeist@"${VERSION}"
-cd -
+# Get the platform
+platform=$(uname -s | tr '[:upper:]' '[:lower:]')
 
-# Prefer full path for running zeitgeist
-ZEITGEIST_BIN="$(which zeitgeist)"
+echo "Architecture: $arch"
+echo "Platform: $platform"
+
+if [[ ! -f "$ZEITGEIST_BIN" ]]; then
+    echo "Installing zeitgeist"
+    mkdir -p "$BIN_PATH"
+    curl -sSfL -o "$ZEITGEIST_BIN" \
+        https://github.com/kubernetes-sigs/zeitgeist/releases/download/v$VERSION/zeitgeist-"$arch"-"$platform"
+    chmod +x "$ZEITGEIST_BIN"
+fi
 
 "${ZEITGEIST_BIN}" validate \
-  --local-only \
-  --base-path "${REPO_ROOT}" \
-  --config "${REPO_ROOT}"/dependencies.yaml
+    --local-only \
+    --base-path "${REPO_ROOT}" \
+    --config "${REPO_ROOT}"/dependencies.yaml

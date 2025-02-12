@@ -72,11 +72,12 @@ func TestMakeCross(t *testing.T) {
 		mock := &buildfakes.FakeImpl{}
 		tc.prepare(mock)
 		sut.SetImpl(mock)
+
 		err := sut.MakeCross("v1.20.0")
 		if tc.shouldError {
-			require.NotNil(t, err)
+			require.Error(t, err)
 		} else {
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 }

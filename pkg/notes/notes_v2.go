@@ -17,13 +17,12 @@ limitations under the License.
 package notes
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
-
-	"k8s.io/release/pkg/notes/options"
 
 	"github.com/cheggaaa/pb/v3"
 	"github.com/go-git/go-git/v5"
@@ -32,6 +31,8 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/nozzle/throttler"
 	"github.com/sirupsen/logrus"
+
+	"k8s.io/release/pkg/notes/options"
 )
 
 type commitPrPair struct {
@@ -53,11 +54,13 @@ func (g *Gatherer) ListReleaseNotesV2() (*ReleaseNotes, error) {
 
 	// load map providers specified in options
 	mapProviders := []MapProvider{}
+
 	for _, initString := range g.options.MapProviderStrings {
 		provider, err := NewProviderFromInitString(initString)
 		if err != nil {
 			return nil, fmt.Errorf("while getting release notes map providers: %w", err)
 		}
+
 		mapProviders = append(mapProviders, provider)
 	}
 
@@ -89,6 +92,7 @@ func (g *Gatherer) ListReleaseNotesV2() (*ReleaseNotes, error) {
 					logrus.WithFields(logrus.Fields{
 						"pr": pair.PrNum,
 					}).Errorf("ignore err: %v", err)
+
 					noteMaps = []*ReleaseNotesMap{}
 				}
 			}
@@ -103,6 +107,7 @@ func (g *Gatherer) ListReleaseNotesV2() (*ReleaseNotes, error) {
 							}).Errorf("ignore err: %v", err)
 						}
 					}
+
 					logrus.WithFields(logrus.Fields{
 						"pr":   pair.PrNum,
 						"note": releaseNote.Text,
@@ -121,6 +126,7 @@ func (g *Gatherer) ListReleaseNotesV2() (*ReleaseNotes, error) {
 					"pr":  pair.PrNum,
 				}).Errorf("err: %v", err)
 			}
+
 			bar.Increment()
 			t.Done(nil)
 		}(pair)
@@ -157,6 +163,7 @@ func (g *Gatherer) buildReleaseNote(pair *commitPrPair) (*ReleaseNote, error) {
 			"sha": pair.Commit.Hash.String(),
 			"pr":  pair.PrNum,
 		}).Debugf("ignore err: %v", err)
+
 		return nil, nil
 	}
 
@@ -166,7 +173,8 @@ func (g *Gatherer) buildReleaseNote(pair *commitPrPair) (*ReleaseNote, error) {
 	authorURL := pr.GetUser().GetHTMLURL()
 	prURL := pr.GetHTMLURL()
 	isFeature := hasString(labelsWithPrefix(pr, "kind"), "feature")
-	noteSuffix := prettifySIGList(labelsWithPrefix(pr, "sig"))
+	sigLabels := labelsWithPrefix(pr, "sig")
+	noteSuffix := prettifySIGList(sigLabels)
 
 	isDuplicateSIG := false
 	if len(labelsWithPrefix(pr, "sig")) > 1 {
@@ -182,6 +190,7 @@ func (g *Gatherer) buildReleaseNote(pair *commitPrPair) (*ReleaseNote, error) {
 	indented := strings.ReplaceAll(text, "\n", "\n  ")
 	markdown := fmt.Sprintf("%s (#%d, @%s)",
 		indented, pr.GetNumber(), author)
+
 	if g.options.AddMarkdownLinks {
 		markdown = fmt.Sprintf("%s ([#%d](%s), [@%s](%s))",
 			indented, pr.GetNumber(), prURL, author, authorURL)
@@ -203,7 +212,7 @@ func (g *Gatherer) buildReleaseNote(pair *commitPrPair) (*ReleaseNote, error) {
 		AuthorURL:      authorURL,
 		PrURL:          prURL,
 		PrNumber:       pr.GetNumber(),
-		SIGs:           labelsWithPrefix(pr, "sig"),
+		SIGs:           sigLabels,
 		Kinds:          labelsWithPrefix(pr, "kind"),
 		Areas:          labelsWithPrefix(pr, "area"),
 		Feature:        isFeature,
@@ -251,14 +260,18 @@ func (g *Gatherer) listLeftParentCommits(opts *options.Options) ([]*commitPrPair
 	}
 
 	logrus.Debugf("finding merge base (last shared commit) between the two SHAs")
+
 	startTime := time.Now()
+
 	lastSharedCommits, err := endCommit.MergeBase(startCommit)
 	if err != nil {
 		return nil, fmt.Errorf("finding shared commits: %w", err)
 	}
+
 	if len(lastSharedCommits) == 0 {
-		return nil, fmt.Errorf("no shared commits between the provided SHAs")
+		return nil, errors.New("no shared commits between the provided SHAs")
 	}
+
 	logrus.Debugf("found merge base in %v", time.Since(startTime))
 
 	stopHash := lastSharedCommits[0].Hash
@@ -267,6 +280,7 @@ func (g *Gatherer) listLeftParentCommits(opts *options.Options) ([]*commitPrPair
 	currentTagHash := plumbing.NewHash(opts.EndSHA)
 
 	pairs := []*commitPrPair{}
+
 	hashPointer := currentTagHash
 	for hashPointer != stopHash {
 		hashString := hashPointer.String()
@@ -279,15 +293,17 @@ func (g *Gatherer) listLeftParentCommits(opts *options.Options) ([]*commitPrPair
 
 		// Find and collect PR number from commit message
 		prNums, err := prsNumForCommitFromMessage(commitPointer.Message)
-		if err == errNoPRIDFoundInCommitMessage {
+		if errors.Is(err, errNoPRIDFoundInCommitMessage) {
 			logrus.WithFields(logrus.Fields{
 				"sha": hashString,
 			}).Debug("no associated PR found")
 
 			// Advance pointer based on left parent
 			hashPointer = commitPointer.ParentHashes[0]
+
 			continue
 		}
+
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"sha": hashString,
@@ -295,8 +311,10 @@ func (g *Gatherer) listLeftParentCommits(opts *options.Options) ([]*commitPrPair
 
 			// Advance pointer based on left parent
 			hashPointer = commitPointer.ParentHashes[0]
+
 			continue
 		}
+
 		logrus.WithFields(logrus.Fields{
 			"sha": hashString,
 			"prs": prNums,

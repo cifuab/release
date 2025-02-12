@@ -19,14 +19,15 @@ IMAGE ?= $(REGISTRY)/debian-base
 BUILD_IMAGE ?= debian-build
 
 TAG ?= $(shell git describe --tags --always --dirty)
-IMAGE_VERSION ?= bullseye-v1.4.0
-CONFIG ?= bullseye
+IMAGE_VERSION ?= bookworm-v1.0.4
+CONFIG ?= bookworm
 
 TAR_FILE ?= rootfs.tar
 ARCH ?= amd64
 ALL_ARCH = amd64 arm arm64 ppc64le s390x
 
-QEMUVERSION=6.1.0-8
+QEMUVERSION=7.2.0-1
+QEMUIMAGE ?= multiarch/qemu-user-static
 
 # This option is for running docker manifest command
 export DOCKER_CLI_EXPERIMENTAL := enabled
@@ -74,7 +75,7 @@ build: clean
 	umask 0022
 
 	# Enable execution of multi-architecture containers
-	docker run --rm --privileged multiarch/qemu-user-static:$(QEMUVERSION) --reset -p yes
+	docker run --rm --privileged $(QEMUIMAGE):$(QEMUVERSION) --reset -p yes
 	docker buildx version
 	BUILDER=$(shell docker buildx create --use)
 

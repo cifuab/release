@@ -30,7 +30,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"sigs.k8s.io/promo-tools/v3/image"
+
 	"sigs.k8s.io/release-utils/hash"
 
 	"k8s.io/release/pkg/cve"
@@ -38,6 +38,8 @@ import (
 	"k8s.io/release/pkg/notes/options"
 	"k8s.io/release/pkg/release"
 )
+
+const prodRegistry = "registry.k8s.io"
 
 // Document represents the underlying structure of a release notes document.
 type Document struct {
@@ -72,9 +74,11 @@ func fetchFileMetadata(dir, urlPrefix, tag string) (*FileMetadata, error) {
 	if dir == "" {
 		return nil, nil
 	}
+
 	if tag == "" {
 		return nil, errors.New("release tags not specified")
 	}
+
 	if urlPrefix == "" {
 		return nil, errors.New("url prefix not specified")
 	}
@@ -88,11 +92,13 @@ func fetchFileMetadata(dir, urlPrefix, tag string) (*FileMetadata, error) {
 	}
 
 	var fileCount int
+
 	for fileType, patterns := range m {
 		fInfo, err := fileInfo(dir, patterns, urlPrefix, tag)
 		if err != nil {
 			return nil, fmt.Errorf("fetching file info: %w", err)
 		}
+
 		*fileType = append(*fileType, fInfo...)
 		fileCount += len(fInfo)
 	}
@@ -100,6 +106,7 @@ func fetchFileMetadata(dir, urlPrefix, tag string) (*FileMetadata, error) {
 	if fileCount == 0 {
 		return nil, nil
 	}
+
 	return fm, nil
 }
 
@@ -107,12 +114,13 @@ func fetchImageMetadata(dir, tag string) (*ImageMetadata, error) {
 	if dir == "" {
 		return nil, nil
 	}
+
 	if tag == "" {
 		return nil, errors.New("release tag not specified")
 	}
 
 	manifests, err := release.NewImages().GetManifestImages(
-		image.ProdRegistry, tag, dir, nil,
+		prodRegistry, tag, dir, nil,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get manifest images: %w", err)
@@ -124,12 +132,12 @@ func fetchImageMetadata(dir, tag string) (*ImageMetadata, error) {
 
 	res := ImageMetadata{}
 
-	// Link the images to their corresponding Google Cloud container registry
+	// Link the images to their corresponding Google Cloud artifact registry
 	// location.
-	const linkBase = "https://console.cloud.google.com/gcr/images/k8s-artifacts-prod/us/"
+	const linkBase = "https://console.cloud.google.com/artifacts/docker/k8s-artifacts-prod/southamerica-east1/images/"
 
 	for manifest, tempArchitectures := range manifests {
-		imageName := strings.TrimPrefix(manifest, image.ProdRegistry+"/")
+		imageName := strings.TrimPrefix(manifest, prodRegistry+"/")
 
 		architectures := []string{}
 		for _, architecture := range tempArchitectures {
@@ -159,9 +167,10 @@ func markdownLink(text, link string) string {
 	return fmt.Sprintf("[%s](%s)", text, link)
 }
 
-// fileInfo fetches file metadata for files in `dir` matching `patterns`
+// fileInfo fetches file metadata for files in `dir` matching `patterns`.
 func fileInfo(dir string, patterns []string, urlPrefix, tag string) ([]File, error) {
 	var files []File
+
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(filepath.Join(dir, pattern))
 		if err != nil {
@@ -182,6 +191,7 @@ func fileInfo(dir string, patterns []string, urlPrefix, tag string) ([]File, err
 			})
 		}
 	}
+
 	return files, nil
 }
 
@@ -216,6 +226,7 @@ func (n *NoteCollection) Sort(kindPriority []notes.Kind) {
 				return i
 			}
 		}
+
 		return -1
 	}
 
@@ -247,7 +258,7 @@ var kindMap = map[notes.Kind]notes.Kind{
 }
 
 // GatherReleaseNotesDocument creates a new gatherer and collects the release
-// notes into a fresh document
+// notes into a fresh document.
 func GatherReleaseNotesDocument(
 	opts *options.Options, previousRev, currentRev string,
 ) (*Document, error) {
@@ -264,7 +275,7 @@ func GatherReleaseNotesDocument(
 	return doc, nil
 }
 
-// New assembles an organized document from an unorganized set of release notes
+// New assembles an organized document from an unorganized set of release notes.
 func New(
 	releaseNotes *notes.ReleaseNotes,
 	previousRev, currentRev string,
@@ -284,6 +295,7 @@ func New(
 	}
 
 	kindCategory := make(map[notes.Kind]NoteCategory)
+
 	for _, pr := range releaseNotes.History() {
 		note := releaseNotes.Get(pr)
 
@@ -302,16 +314,18 @@ func New(
 			if err := newcve.Validate(); err != nil {
 				return nil, fmt.Errorf("checking CVE map file for PR #%d: %w", pr, err)
 			}
+
 			doc.CVEList = append(doc.CVEList, newcve)
 		}
 
-		if note.DoNotPublish {
-			logrus.Debugf("skipping PR %d as (marked to not be published)", pr)
+		if !note.IsMapped && note.DoNotPublish {
+			logrus.Debugf("Skipping PR %d as (marked to not be published)", pr)
+
 			continue
 		}
 
 		// TODO: Refactor the logic here and add testing.
-		if note.DuplicateKind { // nolint:gocritic // a switch case would not make it better
+		if note.DuplicateKind { //nolint:gocritic // a switch case would not make it better
 			kind := mapKind(highestPriorityKind(note.Kinds))
 			if existing, ok := kindCategory[kind]; ok {
 				*existing.NoteEntries = append(*existing.NoteEntries, processNote(note.Markdown))
@@ -350,6 +364,7 @@ func New(
 
 	doc.Notes.Sort(kindPriority)
 	sort.Strings(doc.NotesWithActionRequired)
+
 	return doc, nil
 }
 
@@ -363,18 +378,21 @@ func (d *Document) RenderMarkdownTemplate(bucket, tars, images, templateSpec str
 	if err != nil {
 		return "", fmt.Errorf("fetching file downloads metadata: %w", err)
 	}
+
 	d.FileDownloads = fileMetadata
 
 	imageMetadata, err := fetchImageMetadata(images, d.CurrentRevision)
 	if err != nil {
 		return "", fmt.Errorf("fetching image downloads metadata: %w", err)
 	}
+
 	d.ImageDownloads = imageMetadata
 
 	goTemplate, err := d.template(templateSpec)
 	if err != nil {
 		return "", fmt.Errorf("fetching template: %w", err)
 	}
+
 	tmpl, err := template.New("markdown").
 		Funcs(template.FuncMap{"prettyKind": prettyKind}).
 		Parse(goTemplate)
@@ -386,13 +404,14 @@ func (d *Document) RenderMarkdownTemplate(bucket, tars, images, templateSpec str
 	if err := tmpl.Execute(&s, d); err != nil {
 		return "", fmt.Errorf("rendering with template: %w", err)
 	}
+
 	return strings.TrimSpace(s.String()), nil
 }
 
 // template returns either the default template, a template from file or an
 // inline string template. The `templateSpec` must be in the format of
 // `go-template:{default|path/to/template.ext}` or
-// `go-template:inline:string`
+// `go-template:inline:string`.
 func (d *Document) template(templateSpec string) (string, error) {
 	if templateSpec == options.GoTemplateDefault {
 		return defaultReleaseNotesTemplate, nil
@@ -407,6 +426,7 @@ func (d *Document) template(templateSpec string) (string, error) {
 			templateSpec,
 		)
 	}
+
 	templatePathOrOnline := strings.TrimPrefix(templateSpec, options.GoTemplatePrefix)
 
 	// Check for inline template
@@ -419,6 +439,7 @@ func (d *Document) template(templateSpec string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("reading template: %w", err)
 	}
+
 	if len(b) == 0 {
 		return "", fmt.Errorf("template %q must be non-empty", templatePathOrOnline)
 	}
@@ -438,6 +459,7 @@ func CreateDownloadsTable(w io.Writer, bucket, tars, images, prevTag, newTag str
 	}
 
 	urlPrefix := release.URLPrefixForBucket(bucket)
+
 	fileMetadata, err := fetchFileMetadata(tars, urlPrefix, newTag)
 	if err != nil {
 		return fmt.Errorf("fetching file downloads metadata: %w", err)
@@ -454,6 +476,7 @@ func CreateDownloadsTable(w io.Writer, bucket, tars, images, prevTag, newTag str
 		// context. Return early so we do not modify markdown.
 		fmt.Fprintf(w, "# %s\n\n", newTag)
 		printChangelogSinceLine()
+
 		return nil
 	}
 
@@ -479,6 +502,7 @@ func CreateDownloadsTable(w io.Writer, bucket, tars, images, prevTag, newTag str
 			if header != "" {
 				fmt.Fprintf(w, "### %s\n\n", header)
 			}
+
 			fmt.Fprintln(w, "filename | sha512 hash")
 			fmt.Fprintln(w, "-------- | -----------")
 
@@ -486,6 +510,7 @@ func CreateDownloadsTable(w io.Writer, bucket, tars, images, prevTag, newTag str
 				fmt.Fprint(w, markdownLink(f.Name, f.URL))
 				fmt.Fprintf(w, " | `%s`\n", f.Checksum)
 			}
+
 			fmt.Fprintln(w, "")
 		}
 	}
@@ -502,10 +527,12 @@ func CreateDownloadsTable(w io.Writer, bucket, tars, images, prevTag, newTag str
 				strings.Join(image.Architectures, ", "),
 			)
 		}
+
 		fmt.Fprintln(w, "")
 	}
 
 	printChangelogSinceLine()
+
 	return nil
 }
 
@@ -527,10 +554,12 @@ func mapKind(kind notes.Kind) notes.Kind {
 	if newKind, ok := kindMap[kind]; ok {
 		return newKind
 	}
+
 	return kind
 }
 
 func prettyKind(kind notes.Kind) string {
+	//nolint:exhaustive // all cases are covered by default
 	switch kind {
 	case notes.KindAPIChange:
 		return "API Change"

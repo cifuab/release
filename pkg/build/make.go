@@ -21,12 +21,15 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
-	"k8s.io/release/pkg/release"
+
 	"sigs.k8s.io/release-sdk/git"
 	"sigs.k8s.io/release-utils/command"
+
+	"k8s.io/release/pkg/release"
 )
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt buildfakes/fake_impl.go > buildfakes/_fake_impl.go && mv buildfakes/_fake_impl.go buildfakes/fake_impl.go"
 
 // Make is the main structure for building Kubernetes releases.
 type Make struct {
@@ -78,37 +81,35 @@ func (m *Make) MakeCross(version string) error {
 	}
 
 	logrus.Infof("Checking out version %s", version)
+
 	if err := m.impl.Checkout(repo, version); err != nil {
 		return fmt.Errorf("checking out version %s: %w", version, err)
 	}
 
-	// Unset the build memory requirement for parallel builds
-	// TODO: Remove this once the 1.20 release reaches EOL.
-	const buildMemoryKey = "KUBE_PARALLEL_BUILD_MEMORY"
-	logrus.Infof("Unsetting %s to force parallel build", buildMemoryKey)
-	os.Setenv(buildMemoryKey, "0")
-
 	logrus.Info("Building binaries")
+
 	if err := m.impl.Command(
 		"make",
 		"cross-in-a-container",
-		fmt.Sprintf("KUBE_DOCKER_IMAGE_TAG=%s", version),
+		"KUBE_DOCKER_IMAGE_TAG="+version,
 	); err != nil {
 		return fmt.Errorf("build version %s: %w", version, err)
 	}
 
 	newBuildDir := fmt.Sprintf("%s-%s", release.BuildDir, version)
 	logrus.Infof("Moving build output to %s", newBuildDir)
+
 	if err := m.impl.Rename(release.BuildDir, newBuildDir); err != nil {
 		return fmt.Errorf("move build output: %w", err)
 	}
 
 	logrus.Info("Building package tarballs")
+
 	if err := m.impl.Command(
 		"make",
 		"package-tarballs",
-		fmt.Sprintf("KUBE_DOCKER_IMAGE_TAG=%s", version),
-		fmt.Sprintf("OUT_DIR=%s", newBuildDir),
+		"KUBE_DOCKER_IMAGE_TAG="+version,
+		"OUT_DIR="+newBuildDir,
 	); err != nil {
 		return fmt.Errorf("build package tarballs: %w", err)
 	}

@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG GO_VERSION
+ARG GO_VERSION_TOOLING
 ARG OS_CODENAME
 
-# The Golang version for the builder image should always be explicitly set to
-# the Golang version of the kubernetes/kubernetes active development branch
-FROM golang:1.18.3-${OS_CODENAME} AS builder
+# The Release Tooling can be compiled with a different version of Go than the
+# the Go version used in the kubernetes/kubernetes active development branch.
+FROM golang:${GO_VERSION_TOOLING}-${OS_CODENAME} AS builder
 
 WORKDIR /go/src/k8s.io/release
 
@@ -33,8 +33,12 @@ FROM debian:${OS_CODENAME}
 # arg that specifies the image name (for debugging)
 ARG IMAGE_ARG
 
-# arg that specifies the go version to install
+# The Golang version for the builder image should always be explicitly set to
+# the Golang version of the kubernetes/kubernetes active development branch
 ARG GO_VERSION
+
+# arg that specifies docker-buildx version to install
+ARG DOCKER_BUILDX_VERSION=0.10.2
 
 # add envs:
 # - so we can debug with the image name:tag
@@ -73,6 +77,7 @@ RUN echo "Installing Packages ..." \
             kmod \
             lsb-release \
             mercurial \
+            net-tools \
             pkg-config \
             procps \
             python3 \
@@ -99,14 +104,16 @@ RUN echo "Installing Packages ..." \
             --usage-reporting=false \
         && gcloud components install kubectl \
     && echo "Installing Docker ..." \
-        && curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | apt-key add - \
-        && add-apt-repository \
-            "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
-            $(lsb_release -cs) stable" \
+        && install -m 0755 -d /etc/apt/keyrings && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+        && echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
         && apt-get update \
-        && apt-get install -y --no-install-recommends docker-ce \
+        && apt-get install -y --no-install-recommends docker-ce=5:24.0.* \
         && rm -rf /var/lib/apt/lists/* \
         && sed -i 's/cgroupfs_mount$/#cgroupfs_mount\n/' /etc/init.d/docker \
+    && echo "Installing Docker buildx ..." \
+        && mkdir -p /usr/libexec/docker/cli-plugins \
+        && curl -fsSLo /usr/libexec/docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-amd64 \
+        && chmod a+x /usr/libexec/docker/cli-plugins/docker-buildx \
     && echo "Ensuring Legacy Iptables ..." \
         && update-alternatives --set iptables /usr/sbin/iptables-legacy \
         && update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy

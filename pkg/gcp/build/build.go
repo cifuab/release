@@ -34,12 +34,13 @@ import (
 	"google.golang.org/api/cloudbuild/v1"
 	"google.golang.org/api/option"
 
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-sdk/gcli"
 	"sigs.k8s.io/release-sdk/object"
 	"sigs.k8s.io/release-utils/command"
 	"sigs.k8s.io/release-utils/tar"
 	"sigs.k8s.io/yaml"
+
+	"k8s.io/release/pkg/release"
 )
 
 const (
@@ -80,12 +81,6 @@ func PrepareBuilds(o *Options) error {
 		return errors.New("expected a config directory to be provided")
 	}
 
-	if bazelWorkspace := os.Getenv("BUILD_WORKSPACE_DIRECTORY"); bazelWorkspace != "" {
-		if err := os.Chdir(bazelWorkspace); err != nil {
-			return fmt.Errorf("failed to chdir to bazel workspace (%s): %w", bazelWorkspace, err)
-		}
-	}
-
 	if o.BuildDir == "" {
 		o.BuildDir = o.ConfigDir
 	}
@@ -111,6 +106,7 @@ func PrepareBuilds(o *Options) error {
 	logrus.Infof("Config directory: %s", o.ConfigDir)
 
 	logrus.Infof("Changing to build directory: %s", o.BuildDir)
+
 	if err := os.Chdir(o.BuildDir); err != nil {
 		return fmt.Errorf("failed to chdir to build directory (%s): %w", o.BuildDir, err)
 	}
@@ -121,19 +117,23 @@ func PrepareBuilds(o *Options) error {
 func (o *Options) ValidateConfigDir() error {
 	configDir := o.ConfigDir
 	dirInfo, err := os.Stat(o.ConfigDir)
+
 	if os.IsNotExist(err) {
 		logrus.Infof("Config directory (%s) does not exist", configDir)
+
 		return err
 	}
 
 	if !dirInfo.IsDir() {
 		logrus.Infof("Config directory (%s) is not actually a directory", configDir)
+
 		return err
 	}
 
 	_, err = os.Stat(o.CloudbuildFile)
 	if os.IsNotExist(err) {
 		logrus.Infof("%s does not exist", o.CloudbuildFile)
+
 		return err
 	}
 
@@ -145,11 +145,14 @@ func (o *Options) uploadBuildDir(targetBucket string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
+
 	name := f.Name()
 	_ = f.Close()
+
 	defer os.Remove(name)
 
 	logrus.Infof("Creating source tarball at %s...", name)
+
 	if err := tar.Compress(name, ".", regexp.MustCompile(".git")); err != nil {
 		return "", fmt.Errorf("create tarball: %w", err)
 	}
@@ -157,6 +160,7 @@ func (o *Options) uploadBuildDir(targetBucket string) (string, error) {
 	u := uuid.New()
 	uploaded := fmt.Sprintf("%s/%s.tgz", targetBucket, u.String())
 	logrus.Infof("Uploading %s to %s...", name, uploaded)
+
 	if err := o.objStore.CopyToRemote(
 		name,
 		uploaded,
@@ -170,12 +174,14 @@ func (o *Options) uploadBuildDir(targetBucket string) (string, error) {
 func getExtraSubs(o *Options) map[string]string {
 	envs := strings.Split(o.EnvPassthrough, ",")
 	subs := map[string]string{}
+
 	for _, e := range envs {
 		e = strings.TrimSpace(e)
 		if e != "" {
 			subs[e] = os.Getenv(e)
 		}
 	}
+
 	return subs
 }
 
@@ -233,7 +239,7 @@ func RunSingleJob(o *Options, jobName, uploaded, version string, subs map[string
 			return errors.New("selected disk size must be greater than 0 GB")
 		}
 
-		diskSizeArg := fmt.Sprintf("--disk-size=%s", o.DiskSize)
+		diskSizeArg := "--disk-size=" + o.DiskSize
 		args = append(args, diskSizeArg)
 	}
 
@@ -241,6 +247,7 @@ func RunSingleJob(o *Options, jobName, uploaded, version string, subs map[string
 
 	if o.LogDir != "" {
 		p := path.Join(o.LogDir, strings.ReplaceAll(jobName, "/", "-")+".log")
+
 		f, err := os.Create(p)
 		if err != nil {
 			return fmt.Errorf("couldn't create %s: %w", p, err)
@@ -251,6 +258,7 @@ func RunSingleJob(o *Options, jobName, uploaded, version string, subs map[string
 	}
 
 	logrus.Infof("cloudbuild command to send to gcp: %s", cmd.String())
+
 	if err := cmd.RunSuccess(); err != nil {
 		return fmt.Errorf("error running %s: %w", cmd.String(), err)
 	}
@@ -266,32 +274,40 @@ func getVariants(o *Options) (variants, error) {
 		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("failed to load variants.yaml: %w", err)
 		}
+
 		if o.Variant != "" {
 			return nil, fmt.Errorf("no variants.yaml found, but a build variant (%q) was specified: %w", o.Variant, err)
 		}
+
 		return nil, nil
 	}
+
 	v := struct {
 		Variants variants `json:"variants"`
 	}{}
 	if err := yaml.UnmarshalStrict(content, &v); err != nil {
 		return nil, fmt.Errorf("failed to read variants.yaml: %w", err)
 	}
+
 	if o.Variant != "" {
 		va, ok := v.Variants[o.Variant]
 		if !ok {
 			return nil, fmt.Errorf("requested variant %q, which is not present in variants.yaml", o.Variant)
 		}
+
 		return variants{o.Variant: va}, nil
 	}
+
 	return v.Variants, nil
 }
 
 func RunBuildJobs(o *Options) []error {
 	var uploaded string
+
 	if o.ScratchBucket != "" {
 		if !o.NoSource {
 			var err error
+
 			uploaded, err = o.uploadBuildDir(o.ScratchBucket + gcsSourceDir)
 			if err != nil {
 				return []error{fmt.Errorf("failed to upload source: %w", err)}
@@ -302,7 +318,9 @@ func RunBuildJobs(o *Options) []error {
 	}
 
 	logrus.Info("Running build jobs...")
+
 	repo := release.NewRepo()
+
 	err := repo.Open()
 	if err != nil {
 		return []error{err}
@@ -321,11 +339,14 @@ func RunBuildJobs(o *Options) []error {
 	if err != nil {
 		return []error{err}
 	}
+
 	if len(vs) == 0 {
 		logrus.Info("No variants.yaml, starting single build job...")
+
 		if err := RunSingleJob(o, "build", uploaded, tag, getExtraSubs(o)); err != nil {
 			return []error{err}
 		}
+
 		return nil
 	}
 
@@ -333,12 +354,16 @@ func RunBuildJobs(o *Options) []error {
 
 	w := sync.WaitGroup{}
 	w.Add(len(vs))
+
 	var jobErrors []error
+
 	extraSubs := getExtraSubs(o)
+
 	for k, v := range vs {
 		go func(job string, vc map[string]string) {
 			defer w.Done()
 			logrus.Infof("Starting job %q...", job)
+
 			if err := RunSingleJob(o, job, uploaded, tag, mergeMaps(extraSubs, vc)); err != nil {
 				logrus.Infof("Job %q failed: %v", job, err)
 				jobErrors = append(jobErrors, fmt.Errorf("job %q failed: %w", job, err))
@@ -347,17 +372,21 @@ func RunBuildJobs(o *Options) []error {
 			}
 		}(k, v)
 	}
+
 	w.Wait()
+
 	return jobErrors
 }
 
 func mergeMaps(maps ...map[string]string) map[string]string {
 	out := map[string]string{}
+
 	for _, m := range maps {
 		for k, v := range m {
 			out[k] = v
 		}
 	}
+
 	return out
 }
 
@@ -381,6 +410,7 @@ func ListJobs(project string, lastJobs int64) error {
 	for _, build := range req.Builds {
 		table.Append([]string{strings.TrimSpace(build.StartTime), strings.TrimSpace(build.FinishTime), strings.TrimSpace(build.Status), strings.TrimSpace(build.LogUrl)})
 	}
+
 	table.Render()
 
 	return nil

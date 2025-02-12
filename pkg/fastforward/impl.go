@@ -19,18 +19,23 @@ package fastforward
 import (
 	"os"
 
-	"k8s.io/release/pkg/gcp/gcb"
-	"k8s.io/release/pkg/release"
+	gogithub "github.com/google/go-github/v60/github"
 
 	"sigs.k8s.io/release-sdk/git"
+	"sigs.k8s.io/release-sdk/github"
 	"sigs.k8s.io/release-utils/env"
 	"sigs.k8s.io/release-utils/util"
+
+	"k8s.io/release/pkg/gcp/gcb"
+	"k8s.io/release/pkg/release"
 )
 
 type defaultImpl struct{}
 
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
 //counterfeiter:generate . impl
+//go:generate /usr/bin/env bash -c "cat ../../hack/boilerplate/boilerplate.generatego.txt fastforwardfakes/fake_impl.go > fastforwardfakes/_fake_impl.go && mv fastforwardfakes/_fake_impl.go fastforwardfakes/fake_impl.go"
+
 type impl interface {
 	CloneOrOpenDefaultGitHubRepoSSH(string) (*git.Repo, error)
 	RepoSetDry(*git.Repo)
@@ -58,6 +63,7 @@ type impl interface {
 	MkdirTemp(string, string) (string, error)
 	Exists(string) bool
 	ConfigureGlobalDefaultUserAndEmail() error
+	ListIssues() ([]*gogithub.Issue, error)
 }
 
 func (*defaultImpl) CloneOrOpenDefaultGitHubRepoSSH(repo string) (*git.Repo, error) {
@@ -162,4 +168,10 @@ func (*defaultImpl) Exists(path string) bool {
 
 func (*defaultImpl) ConfigureGlobalDefaultUserAndEmail() error {
 	return git.ConfigureGlobalDefaultUserAndEmail()
+}
+
+func (*defaultImpl) ListIssues() ([]*gogithub.Issue, error) {
+	return github.New().ListIssues(
+		git.DefaultGithubOrg, git.DefaultGithubReleaseRepo, github.IssueStateOpen,
+	)
 }

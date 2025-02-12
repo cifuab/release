@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"sigs.k8s.io/release-sdk/git"
 	"sigs.k8s.io/release-utils/command"
 )
@@ -37,6 +38,7 @@ func getTestGitObjectPusher() (pusher *GitObjectPusher, repoPath string, err err
 	if err := command.NewWithWorkDir(
 		repoPath, "git", "init").RunSilentSuccess(); err != nil {
 		os.RemoveAll(repoPath)
+
 		return nil, repoPath, fmt.Errorf("initializing test repository: %w", err)
 	}
 
@@ -45,6 +47,7 @@ func getTestGitObjectPusher() (pusher *GitObjectPusher, repoPath string, err err
 		repoPath, "git", "commit", "--allow-empty", "-m", "Root commit",
 	).RunSilentSuccess(); err != nil {
 		os.RemoveAll(repoPath)
+
 		return nil, repoPath, fmt.Errorf("creating first commit: %w", err)
 	}
 
@@ -53,6 +56,7 @@ func getTestGitObjectPusher() (pusher *GitObjectPusher, repoPath string, err err
 	if err != nil {
 		return nil, repoPath, fmt.Errorf("listing branches in test repo: %w", err)
 	}
+
 	if !strings.Contains(out.Output(), git.DefaultBranch) {
 		if err := command.NewWithWorkDir(
 			repoPath, "git", "branch", git.DefaultBranch,
@@ -74,7 +78,8 @@ func TestCheckBranchName(t *testing.T) {
 	if repoPath != "" {
 		defer os.RemoveAll(repoPath)
 	}
-	require.Nil(t, err)
+
+	require.NoError(t, err)
 
 	sampleBaranches := []struct {
 		branchName string
@@ -86,9 +91,9 @@ func TestCheckBranchName(t *testing.T) {
 	}
 	for _, testCase := range sampleBaranches {
 		if testCase.valid {
-			require.Nil(t, ghp.checkBranchName(testCase.branchName))
+			require.NoError(t, ghp.checkBranchName(testCase.branchName))
 		} else {
-			require.NotNil(t, ghp.checkBranchName(testCase.branchName))
+			require.Error(t, ghp.checkBranchName(testCase.branchName))
 		}
 	}
 }
@@ -98,7 +103,8 @@ func TestCheckTagName(t *testing.T) {
 	if repoPath != "" {
 		defer os.RemoveAll(repoPath)
 	}
-	require.Nil(t, err)
+
+	require.NoError(t, err)
 
 	sampleTags := []struct {
 		tagName string
@@ -110,9 +116,9 @@ func TestCheckTagName(t *testing.T) {
 	}
 	for _, testCase := range sampleTags {
 		if testCase.valid {
-			require.Nil(t, ghp.checkTagName(testCase.tagName))
+			require.NoError(t, ghp.checkTagName(testCase.tagName))
 		} else {
-			require.NotNil(t, ghp.checkTagName(testCase.tagName))
+			require.Error(t, ghp.checkTagName(testCase.tagName))
 		}
 	}
 }

@@ -23,9 +23,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"sigs.k8s.io/release-utils/command"
+
 	"k8s.io/release/pkg/gcp/auth"
 	"k8s.io/release/pkg/release"
-	"sigs.k8s.io/release-utils/command"
 )
 
 // Build starts a Kubernetes build with the options defined in the build
@@ -34,11 +35,13 @@ func (bi *Instance) Build() error {
 	workingDir := bi.opts.RepoRoot
 	if workingDir == "" {
 		var dirErr error
+
 		workingDir, dirErr = os.Getwd()
 		if dirErr != nil {
 			return fmt.Errorf("getting working directory: %w", dirErr)
 		}
 	}
+
 	logrus.Infof("Current working directory: %s", workingDir)
 
 	workingDirRelative := filepath.Base(workingDir)
@@ -90,10 +93,12 @@ func (bi *Instance) Build() error {
 		releaseType = "quick-release"
 	}
 
-	if buildErr := command.New(
-		"make",
-		releaseType,
-	).RunSuccess(); buildErr != nil {
+	cmd := command.New("make", releaseType)
+	if bi.opts.KubeBuildPlatforms != "" {
+		cmd.Env("KUBE_BUILD_PLATFORMS=" + bi.opts.KubeBuildPlatforms)
+	}
+
+	if buildErr := cmd.RunSuccess(); buildErr != nil {
 		return fmt.Errorf("running make %s: %w", releaseType, buildErr)
 	}
 
@@ -112,6 +117,7 @@ func (bi *Instance) checkBuildExists() (bool, error) {
 	bi.opts.Version = version
 	if bi.opts.Version == "" {
 		logrus.Infof("Failed to get a build version from the workspace")
+
 		return false, nil
 	}
 
@@ -138,22 +144,30 @@ func (bi *Instance) checkBuildExists() (bool, error) {
 
 	// TODO: Do we need to handle the errors more effectively?
 	existErrors := []error{}
+	foundItems := 0
+
 	for _, path := range gcsBuildPaths {
 		logrus.Infof("Checking if GCS build path (%s) exists", path)
+
 		exists, existErr := bi.objStore.PathExists(path)
 		if existErr != nil || !exists {
 			existErrors = append(existErrors, existErr)
 		}
+
+		foundItems++
 	}
 
 	images := release.NewImages()
+
 	imagesExist, imagesExistErr := images.Exists(bi.opts.Registry, version, bi.opts.Fast)
 	if imagesExistErr != nil {
 		existErrors = append(existErrors, imagesExistErr)
 	}
-
-	if imagesExist && len(existErrors) == 0 {
+	// we are expecting atleast 3 items to be found; /version folder, kubernetes.tgz and /version/bin folder
+	// if bi.opts.AllowDup is false, we want to return this function as true
+	if imagesExist && len(existErrors) == 0 && foundItems >= 3 && !bi.opts.AllowDup {
 		logrus.Infof("Build already exists. Exiting...")
+
 		return true, nil
 	}
 

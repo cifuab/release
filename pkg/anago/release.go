@@ -21,20 +21,23 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/sirupsen/logrus"
 
-	"k8s.io/release/pkg/announce"
-	"k8s.io/release/pkg/build"
-	"k8s.io/release/pkg/gcp/gcb"
-	"k8s.io/release/pkg/release"
 	"sigs.k8s.io/release-sdk/git"
 	"sigs.k8s.io/release-sdk/object"
 	"sigs.k8s.io/release-utils/log"
 	"sigs.k8s.io/release-utils/util"
+
+	"k8s.io/release/pkg/announce"
+	"k8s.io/release/pkg/announce/github"
+	"k8s.io/release/pkg/build"
+	"k8s.io/release/pkg/gcp/gcb"
+	"k8s.io/release/pkg/release"
 )
 
 // releaseClient is a client for release a previously staged release.
+//
 //counterfeiter:generate . releaseClient
 type releaseClient interface {
 	// Submit can be used to submit a Google Cloud Build (GCB) job.
@@ -87,10 +90,6 @@ type releaseClient interface {
 	// UpdateGitHubPage updates the GitHub release page to with the source code
 	// and release information.
 	UpdateGitHubPage() error
-
-	// Archive copies the release process logs to a bucket and sets private
-	// permissions on it.
-	Archive() error
 }
 
 // DefaultRelease is the default staging implementation used in production.
@@ -111,7 +110,7 @@ func (d *DefaultRelease) SetImpl(impl releaseImpl) {
 }
 
 // SetState fixes the current state. Mainly used for passing
-// arbitrary values during testing
+// arbitrary values during testing.
 func (d *DefaultRelease) SetState(state *ReleaseState) {
 	d.state = state
 }
@@ -120,6 +119,7 @@ func (d *DefaultRelease) SetState(state *ReleaseState) {
 type defaultReleaseImpl struct{}
 
 // releaseImpl is the implementation of the release client.
+//
 //counterfeiter:generate . releaseImpl
 type releaseImpl interface {
 	Submit(options *gcb.Options) error
@@ -145,12 +145,11 @@ type releaseImpl interface {
 	CreateAnnouncement(
 		options *announce.Options,
 	) error
-	UpdateGitHubPage(options *announce.GitHubPageOptions) error
+	UpdateGitHubPage(options *github.Options) error
 	PushTags(pusher *release.GitObjectPusher, tagList []string) error
 	PushBranches(pusher *release.GitObjectPusher, branchList []string) error
 	PushMainBranch(pusher *release.GitObjectPusher) error
 	NewGitPusher(opts *release.GitObjectPusherOptions) (*release.GitObjectPusher, error)
-	ArchiveRelease(options *release.ArchiverOptions) error
 	NormalizePath(store object.Store, pathParts ...string) (string, error)
 	CopyToRemote(store object.Store, src, gcsPath string) error
 	PublishReleaseNotesIndex(
@@ -188,6 +187,7 @@ func (d *defaultReleaseImpl) PrepareWorkspaceRelease(
 	); err != nil {
 		return err
 	}
+
 	return os.Chdir(gitRoot)
 }
 
@@ -219,9 +219,9 @@ func (d *defaultReleaseImpl) ValidateImages(
 }
 
 func (d *defaultReleaseImpl) PublishVersion(
-	buildType, version, buildDir, bucket, gcsRoot string,
-	versionMarkers []string,
-	privateBucket, fast bool,
+	buildType, version, buildDir, bucket, gcsRoot string, //nolint: gocritic
+	versionMarkers []string, //nolint: gocritic
+	privateBucket, fast bool, //nolint: gocritic
 ) error {
 	return release.
 		NewPublisher().
@@ -236,6 +236,7 @@ func (d *DefaultRelease) Submit(stream bool) error {
 	options.Branch = d.options.ReleaseBranch
 	options.ReleaseType = d.options.ReleaseType
 	options.BuildVersion = d.options.BuildVersion
+
 	return d.impl.Submit(options)
 }
 
@@ -247,27 +248,25 @@ func (d *DefaultRelease) InitLogFile() error {
 	logrus.SetFormatter(
 		&logrus.TextFormatter{FullTimestamp: true, ForceColors: true},
 	)
+
 	logFile := filepath.Join(os.TempDir(), "release.log")
 	if err := d.impl.ToFile(logFile); err != nil {
 		return fmt.Errorf("setup log file: %w", err)
 	}
+
 	d.state.logFile = logFile
 	logrus.Infof("Additionally logging to file %s", d.state.logFile)
+
 	return nil
 }
 
 func (d *defaultReleaseImpl) CreateAnnouncement(options *announce.Options) error {
 	// Create the announcement
-	return announce.CreateForRelease(options)
+	return announce.NewAnnounce(options).CreateForRelease()
 }
 
-func (d *defaultReleaseImpl) ArchiveRelease(options *release.ArchiverOptions) error {
-	// Create a new release archiver
-	return release.NewArchiver(options).ArchiveRelease()
-}
-
-func (d *defaultReleaseImpl) UpdateGitHubPage(options *announce.GitHubPageOptions) error {
-	return announce.UpdateGitHubPage(options)
+func (d *defaultReleaseImpl) UpdateGitHubPage(options *github.Options) error {
+	return github.NewGitHub(options).UpdateGitHubPage()
 }
 
 func (d *defaultReleaseImpl) PushTags(
@@ -286,6 +285,7 @@ func (d *defaultReleaseImpl) PushMainBranch(pusher *release.GitObjectPusher) err
 	if err := pusher.PushMain(); err != nil {
 		return fmt.Errorf("pushing changes in main branch: %w", err)
 	}
+
 	return nil
 }
 
@@ -313,7 +313,7 @@ func (d *defaultReleaseImpl) CreatePubBotBranchIssue(branchName string) error {
 	return release.CreatePubBotBranchIssue(branchName)
 }
 
-// NewGitPusher returns a new instance of the git pusher to reuse
+// NewGitPusher returns a new instance of the git pusher to reuse.
 func (d *defaultReleaseImpl) NewGitPusher(
 	opts *release.GitObjectPusherOptions,
 ) (pusher *release.GitObjectPusher, err error) {
@@ -321,6 +321,7 @@ func (d *defaultReleaseImpl) NewGitPusher(
 	if err != nil {
 		return nil, fmt.Errorf("creating new git object pusher: %w", err)
 	}
+
 	return pusher, nil
 }
 
@@ -328,6 +329,7 @@ func (d *DefaultRelease) ValidateOptions() error {
 	if err := d.options.Validate(d.state.State); err != nil {
 		return fmt.Errorf("validating options: %w", err)
 	}
+
 	return nil
 }
 
@@ -344,7 +346,9 @@ func (d *DefaultRelease) CheckReleaseBranchState() error {
 	if err != nil {
 		return fmt.Errorf("check if release branch needs creation: %w", err)
 	}
+
 	d.state.createReleaseBranch = createReleaseBranch
+
 	return nil
 }
 
@@ -360,6 +364,7 @@ func (d *DefaultRelease) GenerateReleaseVersion() error {
 	}
 	// Set the versions object in the state
 	d.state.versions = versions
+
 	return nil
 }
 
@@ -369,6 +374,7 @@ func (d *DefaultRelease) PrepareWorkspace() error {
 	); err != nil {
 		return fmt.Errorf("prepare workspace: %w", err)
 	}
+
 	return nil
 }
 
@@ -382,6 +388,7 @@ func (d *DefaultRelease) PushArtifacts() error {
 		)
 		bucket := d.options.Bucket()
 		containerRegistry := d.options.ContainerRegistry()
+
 		pushBuildOptions := &build.Options{
 			Bucket:                     bucket,
 			BuildDir:                   buildDir,
@@ -423,9 +430,11 @@ func (d *DefaultRelease) PushArtifacts() error {
 		}
 	}
 
-	logrus.Info("Publishing release notes JSON")
+	logrus.Info("Publishing release notes JSON and announcement")
+
 	objStore := object.NewGCS()
 	objStore.SetOptions(objStore.WithNoClobber(false))
+
 	gcsReleaseRootPath, err := d.impl.NormalizePath(
 		objStore, d.options.Bucket(), gcsRoot,
 	)
@@ -437,12 +446,17 @@ func (d *DefaultRelease) PushArtifacts() error {
 		"/%s/release-notes.json", d.state.versions.Prime(),
 	)
 
-	if err := d.impl.CopyToRemote(
-		objStore,
-		releaseNotesJSONFile,
-		gcsReleaseNotesPath,
-	); err != nil {
-		return fmt.Errorf("copy release notes to bucket: %w", err)
+	for from, to := range map[string]string{
+		releaseNotesJSONFile: gcsReleaseNotesPath,
+		announcementHTMLFile: gcsReleaseRootPath + fmt.Sprintf("/%s/%s", d.state.versions.Prime(), announce.AnnouncementFile),
+	} {
+		if err := d.impl.CopyToRemote(
+			objStore,
+			from,
+			to,
+		); err != nil {
+			return fmt.Errorf("copy file notes to bucket: %w", err)
+		}
 	}
 
 	for _, version := range d.state.versions.Ordered() {
@@ -458,6 +472,7 @@ func (d *DefaultRelease) PushArtifacts() error {
 	}
 
 	logrus.Info("Publishing updated release notes index")
+
 	if err := d.impl.PublishReleaseNotesIndex(
 		gcsReleaseRootPath, gcsReleaseNotesPath, d.state.versions.Prime(),
 	); err != nil {
@@ -469,7 +484,7 @@ func (d *DefaultRelease) PushArtifacts() error {
 
 // PushGitObjects uploads to the remote repository the release's tags and branches.
 // Internally, this function calls the release implementation's PushTags,
-// PushBranches and PushMainBranch methods
+// PushBranches and PushMainBranch methods.
 func (d *DefaultRelease) PushGitObjects() error {
 	// Build the git object pusher
 	pusher, err := d.impl.NewGitPusher(
@@ -511,12 +526,13 @@ func (d *DefaultRelease) PushGitObjects() error {
 		"Git objects push complete (%d branches, %d tags & main branch)",
 		len(d.state.versions.Ordered()), len(branchList),
 	)
+
 	return nil
 }
 
-// CreateAnnouncement creates the announcement.html file
+// CreateAnnouncement creates the announcement.html file.
 func (d *DefaultRelease) CreateAnnouncement() error {
-	// Buld the announcement options set
+	// Build the announcement options set
 	announceOpts := announce.NewOptions()
 
 	// Workdir is where the announce files will be saved
@@ -536,17 +552,20 @@ func (d *DefaultRelease) CreateAnnouncement() error {
 		fmt.Sprintf("CHANGELOG/CHANGELOG-%d.%d.md", primeSemver.Major, primeSemver.Minor),
 	)
 
-	// Pass the file path as a string to the annoucement options
+	// Pass the file path as a string to the announcement options
 	announceOpts.WithChangelogFile(releaseNotesHTMLFile)
 
-	// Run the annoucement creation
+	// Run the announcement creation
 	if err := d.impl.CreateAnnouncement(announceOpts); err != nil {
 		return fmt.Errorf("creating the announcement: %w", err)
 	}
 
-	// Check if we are releasing is the initial minor (eg 1.20.0),
+	// Check if we are releasing the initial rc release (eg 1.20.0-rc.0),
 	// and we are working on a release-M.m branch
-	if primeSemver.Patch == 0 && len(primeSemver.Pre) == 0 &&
+	if primeSemver.Patch == 0 &&
+		len(primeSemver.Pre) == 2 &&
+		primeSemver.Pre[0].String() == "rc" &&
+		primeSemver.Pre[1].VersionNum == 0 &&
 		d.options.ReleaseBranch != git.DefaultBranch {
 		if d.options.NoMock {
 			// Create the publishing bot issue
@@ -560,24 +579,24 @@ func (d *DefaultRelease) CreateAnnouncement() error {
 			logrus.Info("Not creating publishing bot issue in mock release")
 		}
 	}
+
+	args := ""
+	if d.options.NoMock {
+		args += " --nomock"
+	}
+
+	args += " --tag=" + d.state.versions.Prime()
+
+	logrus.Infof(
+		"To announce this release, run:\n\n$ krel announce send%s", args,
+	)
+
 	return nil
 }
 
 // UpdateGitHubPage Update the GitHub release page, uploading the
-// source code
+// source code.
 func (d *DefaultRelease) UpdateGitHubPage() error {
-	// Array of assets to be published in the release page
-	assetList := []string{
-		// Build the path to the kubernetes tar file:
-		filepath.Join(
-			gitRoot, // /workspace/src/k8s.io/kubernetes
-			fmt.Sprintf("%s-%s", release.BuildDir, d.state.versions.Prime()), // _output-v1.20.0-beta.3/
-			release.GCSStagePath,     // gcs-stage/
-			d.state.versions.Prime(), // v1.20.0-beta.3
-			release.KubernetesTar,    // kubernetes.tar.gz
-		) + ":Kubernetes Source Code",
-	}
-
 	// URL to the changelog:
 	changelogURL := fmt.Sprintf(
 		"https://github.com/kubernetes/kubernetes/blob/master/CHANGELOG/CHANGELOG-%d.%d.md",
@@ -586,8 +605,7 @@ func (d *DefaultRelease) UpdateGitHubPage() error {
 	)
 
 	// Build the options set for the GitHub page
-	ghPageOpts := &announce.GitHubPageOptions{
-		AssetFiles:            assetList,
+	ghPageOpts := &github.Options{
 		Tag:                   d.state.versions.Prime(),
 		NoMock:                d.options.NoMock,
 		UpdateIfReleaseExists: true,
@@ -606,34 +624,6 @@ func (d *DefaultRelease) UpdateGitHubPage() error {
 	if err := d.impl.UpdateGitHubPage(ghPageOpts); err != nil {
 		return fmt.Errorf("updating GitHub release page: %w", err)
 	}
-	return nil
-}
-
-// Archive stores the release artifact in a bucket along with
-// its logs for long term conservation
-func (d *DefaultRelease) Archive() error {
-	// Create a new options set for the release archiver
-	archiverOptions := &release.ArchiverOptions{
-		ReleaseBuildDir: filepath.Join(workspaceDir, "src"),
-		LogFile:         d.state.logFile,
-		BuildVersion:    d.options.BuildVersion,
-		PrimeVersion:    d.state.versions.Prime(),
-		Bucket:          d.options.Bucket(),
-	}
-
-	if err := d.impl.ArchiveRelease(archiverOptions); err != nil {
-		return fmt.Errorf("running the release archival process: %w", err)
-	}
-
-	args := ""
-	if d.options.NoMock {
-		args += " --nomock"
-	}
-	args += " --tag=" + d.state.versions.Prime()
-
-	logrus.Infof(
-		"To announce this release, run:\n\n$ krel announce send%s", args,
-	)
 
 	return nil
 }

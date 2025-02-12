@@ -1,21 +1,16 @@
 variants:
-  go1.19-bullseye:
-    CONFIG: 'go1.19-bullseye'
-    GO_VERSION: '1.19beta1'
-    OS_CODENAME: 'bullseye'
+  go1.24-bookworm:
+    CONFIG: 'go1.24-bookworm'
+    GO_VERSION: '1.24rc3'
+    OS_CODENAME: 'bookworm'
     REVISION: '0'
-  go1.18-bullseye:
-    CONFIG: 'go1.18-bullseye'
-    GO_VERSION: '1.18.3'
-    OS_CODENAME: 'bullseye'
+  go1.23-bookworm:
+    CONFIG: 'go1.23-bookworm'
+    GO_VERSION: '1.23.6'
+    OS_CODENAME: 'bookworm'
     REVISION: '0'
-  go1.17-bullseye:
-    CONFIG: 'go1.17-bullseye'
-    GO_VERSION: '1.17.11'
-    OS_CODENAME: 'bullseye'
-    REVISION: '0'
-  go1.16-buster:
-    CONFIG: 'go1.16-buster'
-    GO_VERSION: '1.16.15'
-    OS_CODENAME: 'buster'
+  go1.22-bookworm:
+    CONFIG: 'go1.22-bookworm'
+    GO_VERSION: '1.22.12'
+    OS_CODENAME: 'bookworm'
     REVISION: '0'

@@ -24,14 +24,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"k8s.io/release/pkg/changelog"
 	"sigs.k8s.io/release-sdk/git"
+
+	"k8s.io/release/pkg/changelog"
 )
 
 func (s *sut) getChangelogOptions(tag string) *changelog.Options {
 	return &changelog.Options{
-		RepoPath:     s.repo.Dir(),
+		// Uncomment to record data:
+		// RecordDir: filepath.Join(testDataDir, "changelog-"+tag),
 		ReplayDir:    filepath.Join(testDataDir, "changelog-"+tag),
+		RepoPath:     s.repo.Dir(),
 		Tag:          tag,
 		Tars:         ".",
 		Branch:       git.DefaultBranch,
@@ -42,13 +45,13 @@ func (s *sut) getChangelogOptions(tag string) *changelog.Options {
 func fileContains(t *testing.T, file, contains string) {
 	require.FileExists(t, file)
 	content, err := os.ReadFile(file)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Contains(t, string(content), contains)
 }
 
 func TestChangelogNoArgumentsOrFlags(t *testing.T) {
 	err := changelog.New(&changelog.Options{}).Run()
-	require.NotNil(t, err)
+	require.Error(t, err)
 }
 
 func TestNewPatchRelease(t *testing.T) {
@@ -56,28 +59,29 @@ func TestNewPatchRelease(t *testing.T) {
 	s := newSUT(t)
 	defer s.cleanup(t)
 
-	releaseBranch := "release-1.16"
-	co := s.getChangelogOptions("v1.16.3")
+	releaseBranch := "release-1.25"
+	co := s.getChangelogOptions("v1.25.3")
 	co.Branch = releaseBranch
 	co.Dependencies = true
 
 	// When
 	cl := changelog.New(co)
-	require.Nil(t, cl.Run())
+	require.NoError(t, cl.Run())
 
 	// Then
 	// Verify local results
-	fileContains(t, "CHANGELOG-1.16.html", patchReleaseExpectedHTML)
-	require.Nil(t, os.RemoveAll("CHANGELOG-1.16.html"))
+	fileContains(t, "CHANGELOG-1.25.html", patchReleaseExpectedHTML)
+	require.NoError(t, os.RemoveAll("CHANGELOG-1.25.html"))
+
 	for _, x := range []struct {
 		branch        string
 		commitMessage string
 	}{
-		{releaseBranch, "Update CHANGELOG/CHANGELOG-1.16.md for v1.16.3"},
-		{git.DefaultBranch, "Update directory for v1.16.3 release"},
+		{releaseBranch, "Update CHANGELOG/CHANGELOG-1.25.md for v1.25.3"},
+		{git.DefaultBranch, "Update directory for v1.25.3 release"},
 	} {
 		// Switch to the test branch
-		require.Nil(t, s.repo.Checkout(x.branch))
+		require.NoError(t, s.repo.Checkout(x.branch))
 
 		// Verify commit message
 		lastCommit := s.lastCommit(t, x.branch)
@@ -85,13 +89,12 @@ func TestNewPatchRelease(t *testing.T) {
 		require.Contains(t, lastCommit, x.commitMessage)
 
 		// Verify changelog contents
-		result, err := os.ReadFile(
-			filepath.Join(s.repo.Dir(), changelog.RepoChangelogDir, "CHANGELOG-1.16.md"),
-		)
-		require.Nil(t, err)
+		changelogPath := filepath.Join(s.repo.Dir(), changelog.RepoChangelogDir, "CHANGELOG-1.25.md")
+		result, err := os.ReadFile(changelogPath)
+
+		require.NoError(t, err)
 		require.Contains(t, string(result), patchReleaseExpectedTOC)
 		require.Contains(t, string(result), patchReleaseExpectedContent)
-		require.Contains(t, string(result), patchReleaseDeps)
 	}
 }
 
@@ -103,13 +106,13 @@ func TestNewAlphaRelease(t *testing.T) {
 	co := s.getChangelogOptions("v1.18.0-alpha.3")
 
 	// When
-	require.Nil(t, changelog.New(co).Run())
+	require.NoError(t, changelog.New(co).Run())
 
 	// Then
 	// Verify local results
 	fileContains(t, "CHANGELOG-1.18.html", alphaReleaseExpectedHTMLHead)
 	fileContains(t, "CHANGELOG-1.18.html", alphaReleaseExpectedHTMLBottom)
-	require.Nil(t, os.RemoveAll("CHANGELOG-1.18.html"))
+	require.NoError(t, os.RemoveAll("CHANGELOG-1.18.html"))
 
 	// Verify commit message
 	lastCommit := s.lastCommit(t, git.DefaultBranch)
@@ -120,7 +123,7 @@ func TestNewAlphaRelease(t *testing.T) {
 	result, err := os.ReadFile(
 		filepath.Join(s.repo.Dir(), changelog.RepoChangelogDir, "CHANGELOG-1.18.md"),
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Regexp(t, alphaReleaseExpectedTOC, string(result))
 	require.Contains(t, string(result), alphaReleaseExpectedContent)
 }
@@ -133,12 +136,12 @@ func TestNewAlpha1Release(t *testing.T) {
 	co := s.getChangelogOptions("v1.19.0-alpha.1")
 
 	// When
-	require.Nil(t, changelog.New(co).Run())
+	require.NoError(t, changelog.New(co).Run())
 
 	// Then
 	// Verify local results
 	fileContains(t, "CHANGELOG-1.19.html", alpha1ExpectedHTML)
-	require.Nil(t, os.RemoveAll("CHANGELOG-1.19.html"))
+	require.NoError(t, os.RemoveAll("CHANGELOG-1.19.html"))
 
 	// Verify commit message
 	lastCommit := s.lastCommit(t, git.DefaultBranch)
@@ -149,7 +152,7 @@ func TestNewAlpha1Release(t *testing.T) {
 	result, err := os.ReadFile(
 		filepath.Join(s.repo.Dir(), changelog.RepoChangelogDir, "CHANGELOG-1.19.md"),
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Regexp(t, alpha1ReleaseExpectedTOC, string(result))
 }
 
@@ -171,9 +174,9 @@ func TestNewMinorRelease(t *testing.T) {
 		}
 	}
 
-	require.Nil(t, s.repo.Checkout(releaseBranch))
+	require.NoError(t, s.repo.Checkout(releaseBranch))
 	changelogIter(func(filename string) {
-		require.Nil(t,
+		require.NoError(t,
 			//nolint:gosec // TODO(gosec): G306: Expect WriteFile permissions
 			// to be 0600 or less
 			os.WriteFile(
@@ -182,24 +185,25 @@ func TestNewMinorRelease(t *testing.T) {
 				0o644,
 			),
 		)
-		require.Nil(t, s.repo.Add(filename))
+		require.NoError(t, s.repo.Add(filename))
 	})
-	require.Nil(t, s.repo.Commit("Adding other changelog files"))
-	require.Nil(t, s.repo.Checkout(git.DefaultBranch))
+	require.NoError(t, s.repo.Commit("Adding other changelog files"))
+	require.NoError(t, s.repo.Checkout(git.DefaultBranch))
 
 	// When
-	require.Nil(t, changelog.New(co).Run())
+	require.NoError(t, changelog.New(co).Run())
 
 	// Then
 	// Verify local results
-	require.Nil(t, s.repo.Checkout(releaseBranch))
+	require.NoError(t, s.repo.Checkout(releaseBranch))
 	changelogIter(func(filename string) {
 		_, err := os.Stat(filename)
 		require.True(t, os.IsNotExist(err))
 	})
 
 	fileContains(t, "CHANGELOG-1.21.html", minorReleaseExpectedHTML)
-	require.Nil(t, os.RemoveAll("CHANGELOG-1.21.html"))
+	require.NoError(t, os.RemoveAll("CHANGELOG-1.21.html"))
+
 	for _, x := range []struct {
 		branch        string
 		commitMessage string
@@ -208,7 +212,7 @@ func TestNewMinorRelease(t *testing.T) {
 		{git.DefaultBranch, "Update directory for v1.21.0 release"},
 	} {
 		// Switch to the test branch
-		require.Nil(t, s.repo.Checkout(x.branch))
+		require.NoError(t, s.repo.Checkout(x.branch))
 
 		// Verify commit message
 		lastCommit := s.lastCommit(t, x.branch)
@@ -219,7 +223,7 @@ func TestNewMinorRelease(t *testing.T) {
 		result, err := os.ReadFile(
 			filepath.Join(s.repo.Dir(), changelog.RepoChangelogDir, "CHANGELOG-1.21.md"),
 		)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Contains(t, string(result), minorReleaseExpectedTOC)
 		require.Contains(t, string(result), minorReleaseExpectedContent)
 	}
@@ -235,15 +239,15 @@ func TestNewRCRelease(t *testing.T) {
 	co.Branch = releaseBranch
 
 	// When
-	require.Nil(t, changelog.New(co).Run())
+	require.NoError(t, changelog.New(co).Run())
 
 	// Then
 	// Verify local results
-	require.Nil(t, s.repo.Checkout(releaseBranch))
+	require.NoError(t, s.repo.Checkout(releaseBranch))
 
 	result, err := os.ReadFile(
 		filepath.Join(s.repo.Dir(), changelog.RepoChangelogDir, "CHANGELOG-1.16.md"),
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Contains(t, string(result), rcReleaseExpectedTOC)
 }
